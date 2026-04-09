@@ -201,6 +201,11 @@
     .move-btn:active{transform:scale(.85);background:rgba(59,130,246,0.1);}
     .move-btn:disabled{opacity:0.2;pointer-events:none;}
 
+    #syncStatus{font-size:10px;font-weight:700;color:#475569;display:flex;align-items:center;gap:4px;}
+    .sync-on{color:#22c55e !important;}
+    .sync-off{color:#ef4444 !important;}
+
+
   </style>
 </head>
 <body>
@@ -233,8 +238,15 @@
         </div>
         <div>
           <div class="grad" style="font-size:15px;font-weight:800;line-height:1.1;">Logis Master</div>
-          <div style="font-size:10px;color:#475569;">Smart Logistic Planner Pro</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="font-size:10px;color:#475569;">Smart Logistic Planner Pro</div>
+            <div id="syncStatus">
+               <span id="syncDot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></span>
+               <span id="syncText">OFFLINE</span>
+            </div>
+          </div>
         </div>
+
       </div>
       <!-- Right side -->
       <div style="display:flex;align-items:center;gap:10px;">
@@ -464,10 +476,34 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- JAVASCRIPT                                                   -->
+<!-- JAVASCRIPT & FIREBASE                                        -->
 <!-- ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
 <script>
 'use strict';
+
+// ── Firebase Config ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBq8MxJ6HU_eMthWR3U17LAmh4qiwkwDE",
+  authDomain: "bussi-cae1d.firebaseapp.com",
+  projectId: "bussi-cae1d",
+  storageBucket: "bussi-cae1d.firebasestorage.app",
+  messagingSenderId: "1036146222343",
+  appId: "1:1036146222343:web:f0c1b5b1906861e14051a2",
+  measurementId: "G-PFTS6MRPZN"
+};
+
+// Initialize Firebase (Compat mode for simple usage)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Enable offline persistence
+db.enablePersistence().catch((err) => {
+  if (err.code == 'failed-precondition') console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+  else if (err.code == 'unimplemented') console.warn('The current browser does not support all of the features required to enable persistence.');
+});
 
 // ── State ────────────────────────────────────────────────────
 let jobs         = [];
@@ -481,19 +517,49 @@ let delTargetId  = null;
 let isManualSort = false;
 const AVG_SPEED_KMH = 40; // ความเร็วเฉลี่ยกม./ชม.
 
-
 // ── Storage ──────────────────────────────────────────────────
-const LS_JOBS = 'logis_jobs_v1';
 const LS_LOC  = 'logis_loc';
+const COLLECTION = 'jobs';
 
 function loadJobs() {
-  try { jobs = JSON.parse(localStorage.getItem(LS_JOBS) || '[]'); }
-  catch { jobs = []; }
+  // We use Firestore onSnapshot for real-time sync
+  db.collection(COLLECTION).onSnapshot(
+    (snapshot) => {
+      const updatedJobs = [];
+      snapshot.forEach(doc => {
+        updatedJobs.push({ id: doc.id, ...doc.data() });
+      });
+      jobs = updatedJobs;
+      renderAll();
+      updateSyncStatus(true);
+    },
+    (error) => {
+      console.error("Error fetching jobs: ", error);
+      updateSyncStatus(false);
+      // Fallback to local if needed, but Firebase handles offline automatically
+    }
+  );
 }
-function saveJobs() { localStorage.setItem(LS_JOBS, JSON.stringify(jobs)); }
 
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function updateSyncStatus(online) {
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  if (!dot || !text) return;
+  dot.style.background = online ? '#22c55e' : '#ef4444';
+  text.textContent = online ? 'SYNCED' : 'DISCONNECTED';
+  text.style.color = online ? '#22c55e' : '#ef4444';
+}
+
+function saveJobs() { 
+  // In Firestore mode, we don't save the whole array.
+  // We manage documents individually.
+  // But we clear localStorage to avoid confusion if we want.
+  localStorage.removeItem('logis_jobs_v1');
+}
+
+function genId() { return db.collection(COLLECTION).doc().id; }
 function todayStr() { return new Date().toISOString().split('T')[0]; }
+
 
 // ── Location Classifier ───────────────────────────────────────
 function classifyLoc(raw) {
@@ -793,15 +859,21 @@ function renderManage() {
 // ── Actions ───────────────────────────────────────────────────
 function completeJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  j.status='done'; j.completedAt=new Date().toISOString();
-  saveJobs(); renderAll();
-  toast(`✅ "${j.customerName}" เสร็จแล้ว`,'ok');
+  db.collection(COLLECTION).doc(id).update({
+    status: 'done',
+    completedAt: new Date().toISOString()
+  }).then(() => {
+    toast(`✅ "${j.customerName}" เสร็จแล้ว`, 'ok');
+  });
 }
 function undoJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  j.status='pending'; j.completedAt=null;
-  saveJobs(); renderAll();
-  toast(`↩️ ย้าย "${j.customerName}" กลับ`,'info');
+  db.collection(COLLECTION).doc(id).update({
+    status: 'pending',
+    completedAt: null
+  }).then(() => {
+    toast(`↩️ ย้าย "${j.customerName}" กลับ`, 'info');
+  });
 }
 function doConfirmDelete(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
@@ -812,9 +884,9 @@ function doConfirmDelete(id) {
 }
 function deleteJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  jobs = jobs.filter(x=>x.id!==id);
-  saveJobs(); renderAll();
-  toast(`🗑️ ลบ "${j.customerName}" แล้ว`,'err');
+  db.collection(COLLECTION).doc(id).delete().then(() => {
+    toast(`🗑️ ลบ "${j.customerName}" แล้ว`, 'err');
+  });
 }
 
 function toggleSortMode(val) {
@@ -824,10 +896,14 @@ function toggleSortMode(val) {
   document.getElementById('sortLabel').style.color = val ? '#3b82f6' : '#475569';
   
   if (val) {
-    // Initialize priorities if entering manual mode for the first time or items don't have it
-    const { pending } = getSorted(); // Get current distance-sorted order
-    pending.forEach((j, i) => { j.priority = i; });
-    saveJobs();
+    // Initialize priorities in Firestore
+    const { pending } = getSorted(); 
+    const batch = db.batch();
+    pending.forEach((j, i) => { 
+      const ref = db.collection(COLLECTION).doc(j.id);
+      batch.update(ref, { priority: i });
+    });
+    batch.commit();
   }
   renderAll();
   toast(val ? '🔧 เข้าสู่โหมดจัดลำดับเอง' : '📍 กลับสู่โหมดเรียงตามระยะทาง', 'info');
@@ -841,16 +917,16 @@ function moveJob(id, dir) {
   const targetIdx = idx + dir;
   if (targetIdx < 0 || targetIdx >= pending.length) return;
   
-  // Swap priorities
   const current = pending[idx];
   const target = pending[targetIdx];
-  const temp = current.priority;
-  current.priority = target.priority;
-  target.priority = temp;
   
-  saveJobs();
-  renderAll();
+  // Swap priorities in Firestore
+  const batch = db.batch();
+  batch.update(db.collection(COLLECTION).doc(current.id), { priority: target.priority });
+  batch.update(db.collection(COLLECTION).doc(target.id), { priority: current.priority });
+  batch.commit().then(() => renderAll());
 }
+
 
 
 // ── Smart Parser ──────────────────────────────────────────────
@@ -971,14 +1047,22 @@ function showPreview(list) {
 
 function saveFromParser() {
   if (!parsedBuf.length) return;
-  let added=0;
-  parsedBuf.forEach(j=>{
-    const dup = j.phone && jobs.some(x=>x.phone===j.phone && x.status==='pending');
-    if (!dup) { jobs.push(j); added++; }
+  const batch = db.batch();
+  let added = 0;
+  parsedBuf.forEach(j => {
+    const dup = j.phone && jobs.some(x => x.phone === j.phone && x.status === 'pending');
+    if (!dup) {
+      const ref = db.collection(COLLECTION).doc(j.id);
+      batch.set(ref, j);
+      added++;
+    }
   });
-  saveJobs(); renderAll(); closeParserModal();
-  toast(`✅ บันทึก ${added} งานแล้ว`,'ok');
+  batch.commit().then(() => {
+    closeParserModal();
+    toast(`✅ บันทึก ${added} งานแล้ว (Cloud Sync)`, 'ok');
+  });
 }
+
 
 // ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
@@ -1051,17 +1135,27 @@ function saveJob() {
   };
 
   if (editingId) {
-    const idx = jobs.findIndex(j=>j.id===editingId);
-    if (idx!==-1) jobs[idx]={...jobs[idx],...data};
-    toast(`✅ แก้ไข "${name}" แล้ว`,'ok');
+    db.collection(COLLECTION).doc(editingId).update(data).then(() => {
+      toast(`✅ แก้ไข "${name}" แล้ว (Cloud Sync)`, 'ok');
+    });
   } else {
     const maxPri = jobs.length > 0 ? Math.max(...jobs.map(j => j.priority || 0)) : 0;
-    jobs.push({ id:genId(), status:'pending', createdAt:new Date().toISOString(), completedAt:null, date:todayStr(), priority: maxPri + 1, ...data });
-    toast(`✅ เพิ่ม "${name}" แล้ว`,'ok');
+    const newId = genId();
+    const fullData = { 
+      status:'pending', 
+      createdAt:new Date().toISOString(), 
+      completedAt:null, 
+      date:todayStr(), 
+      priority: maxPri + 1, 
+      ...data 
+    };
+    db.collection(COLLECTION).doc(newId).set(fullData).then(() => {
+      toast(`✅ เพิ่ม "${name}" แล้ว (Cloud Sync)`, 'ok');
+    });
   }
-
-  saveJobs(); renderAll(); closeEditModal();
+  closeEditModal();
 }
+
 
 // ── Tab navigation ────────────────────────────────────────────
 function switchTab(tab) {
