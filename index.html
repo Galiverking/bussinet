@@ -456,6 +456,11 @@
       </div>
 
       <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">จำนวน (วง/ชิ้น)</label>
+        <input type="number" id="fQty" class="form-input" placeholder="เช่น 4" min="1">
+      </div>
+
+      <div>
         <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">เงื่อนไขเวลา</label>
         <input type="text" id="fTime" class="form-input" placeholder="เช่น ไม่เกิน 17.00 น.">
       </div>
@@ -522,39 +527,53 @@ const LS_LOC  = 'logis_loc';
 const COLLECTION = 'jobs';
 
 function loadJobs() {
-  // We use Firestore onSnapshot for real-time sync
+  // Use Firestore onSnapshot with metadata to track real sync status
   db.collection(COLLECTION).onSnapshot(
+    { includeMetadataChanges: true },
     (snapshot) => {
       const updatedJobs = [];
       snapshot.forEach(doc => {
         updatedJobs.push({ id: doc.id, ...doc.data() });
       });
       jobs = updatedJobs;
+
+      // Check if data is from server or local cache
+      const hasPending = snapshot.metadata.hasPendingWrites;
+      const fromCache = snapshot.metadata.fromCache;
+
+      if (!fromCache && !hasPending) {
+        updateSyncStatus('synced');
+      } else if (hasPending) {
+        updateSyncStatus('pending');
+      } else if (fromCache) {
+        updateSyncStatus('offline');
+      }
+
       renderAll();
-      updateSyncStatus(true);
     },
     (error) => {
       console.error("Error fetching jobs: ", error);
-      updateSyncStatus(false);
-      // Fallback to local if needed, but Firebase handles offline automatically
+      updateSyncStatus('error');
     }
   );
 }
 
-function updateSyncStatus(online) {
+function updateSyncStatus(state) {
   const dot = document.getElementById('syncDot');
   const text = document.getElementById('syncText');
+  const wrap = document.getElementById('syncStatus');
   if (!dot || !text) return;
-  dot.style.background = online ? '#22c55e' : '#ef4444';
-  text.textContent = online ? 'SYNCED' : 'DISCONNECTED';
-  text.style.color = online ? '#22c55e' : '#ef4444';
-}
 
-function saveJobs() { 
-  // In Firestore mode, we don't save the whole array.
-  // We manage documents individually.
-  // But we clear localStorage to avoid confusion if we want.
-  localStorage.removeItem('logis_jobs_v1');
+  const states = {
+    synced:  { bg: '#22c55e', label: 'SYNCED',  color: '#22c55e' },
+    pending: { bg: '#f97316', label: 'SYNCING…', color: '#f97316' },
+    offline: { bg: '#ef4444', label: 'OFFLINE',  color: '#ef4444' },
+    error:   { bg: '#ef4444', label: 'ERROR',    color: '#ef4444' }
+  };
+  const s = states[state] || states.offline;
+  dot.style.background = s.bg;
+  text.textContent = s.label;
+  text.style.color = s.color;
 }
 
 function genId() { return db.collection(COLLECTION).doc().id; }
@@ -608,8 +627,21 @@ function calcDist(job) {
 }
 
 function refreshDistances() {
-  jobs.forEach(j => { j.distanceKm = calcDist(j); });
-  saveJobs();
+  const batch = db.batch();
+  let hasChanges = false;
+  jobs.forEach(j => {
+    const newDist = calcDist(j);
+    if (newDist !== j.distanceKm) {
+      j.distanceKm = newDist;
+      if (j.id) {
+        batch.update(db.collection(COLLECTION).doc(j.id), { distanceKm: newDist });
+        hasChanges = true;
+      }
+    }
+  });
+  if (hasChanges) {
+    batch.commit().catch(err => console.warn('Distance sync error:', err));
+  }
 }
 
 // ── GPS ────────────────────────────────────────────────────────
@@ -761,6 +793,7 @@ function cardPending(j, pri) {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           ${j.price ? `<span style="font-size:13px;color:#34d399;font-weight:600;">฿${j.price.toLocaleString('th-TH')}</span>` : ''}
           ${j.wheelSize ? `<span style="font-size:12px;color:#475569;">ล้อ ${j.wheelSize}"</span>` : ''}
+          ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">× ${j.quantity} วง</span>` : ''}
           ${timeBadge}
         </div>
       </div>
@@ -842,6 +875,7 @@ function renderManage() {
         ${j.phone?`<span>📞 ${j.phone}</span>`:''}
         ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:''}
         ${j.wheelSize?`<span>🔵 ล้อ ${j.wheelSize}"</span>`:''}
+        ${j.quantity?`<span style="color:#c4b5fd;">× ${j.quantity} วง</span>`:''}
         ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
         ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
       </div>
@@ -960,7 +994,7 @@ function parseText(text) {
 }
 
 function parseBlock(block) {
-  const job = { id: genId(), status: 'pending', createdAt: new Date().toISOString(), date: todayStr(), distanceKm: null, priority: 0 };
+  const job = { id: genId(), status: 'pending', createdAt: new Date().toISOString(), date: todayStr(), distanceKm: null, priority: 0, quantity: 0 };
 
   // Customer name: handle "ชื่อเฟส : Thanut" or similar
   let m = block.match(/ชื่อ(?:เฟส)?\s*[:：]\s*(.+)/i);
@@ -1006,6 +1040,12 @@ function parseBlock(block) {
       block.match(/(?:ล้อ|วง|ขนาด)\s*(15|17|18|19|20|22)\s*(?:นิ้ว|")?|(?:^|\s)(15|17|18|19|20|22)\s*(?:นิ้ว)/m);
   if (m) job.wheelSize = parseInt(m[1] || m[2]);
 
+  // Quantity: handle "4 วง", "จำนวน: 4", "x4", "/4วง"
+  m = block.match(/จำนวน\s*[:：]?\s*(\d+)/i) ||
+      block.match(/(\d+)\s*(?:วง|ชิ้น|เส้น|ลูก|ชุด)/i) ||
+      block.match(/[x×\/](\d+)\s*(?:วง|ชิ้น|เส้น)?/i);
+  if (m) job.quantity = parseInt(m[1]);
+
   // Time note: handle "**ไม่เกิน17.00น.**"
   m = block.match(/(?:ไม่เกิน|ก่อน|ภายใน|by|deadline)\s*([^* \n]+)/i);
   if (m) job.timeNote = m[0].replace(/\*/g, '').trim().slice(0, 40);
@@ -1039,6 +1079,7 @@ function showPreview(list) {
           :`<span style="color:#f87171;">📍 ไม่พบพิกัด</span>`}
         ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:`<span style="color:#f87171;">฿ ไม่พบ</span>`}
         ${j.wheelSize?`<span style="color:#c4b5fd;">ล้อ ${j.wheelSize}"</span>`:''}
+        ${j.quantity?`<span style="color:#a5b4fc;">× ${j.quantity} วง</span>`:''}
         ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
         ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
       </div>
@@ -1069,7 +1110,7 @@ function openAddModal() {
   editingId=null; selWheel=0;
   document.getElementById('editTitle').textContent='➕ เพิ่มงานใหม่';
   document.getElementById('editId').value='';
-  ['fName','fPhone','fLocation','fPrice','fTime','fNote'].forEach(id=>document.getElementById(id).value='');
+  ['fName','fPhone','fLocation','fPrice','fQty','fTime','fNote'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('locTypeHint').textContent='';
   document.querySelectorAll('.w-btn').forEach(b=>b.classList.remove('sel'));
   document.getElementById('editModal').classList.remove('hidden');
@@ -1085,6 +1126,7 @@ function openEditById(id) {
   document.getElementById('fPhone').value=j.phone||'';
   document.getElementById('fLocation').value=j.locationRaw||'';
   document.getElementById('fPrice').value=j.price||'';
+  document.getElementById('fQty').value=j.quantity||'';
   document.getElementById('fTime').value=j.timeNote||'';
   document.getElementById('fNote').value=j.rawNote||'';
   updateLocTypeHint();
@@ -1129,6 +1171,7 @@ function saveJob() {
     locationType: locType,
     price:       parseInt(document.getElementById('fPrice').value)||0,
     wheelSize:   selWheel,
+    quantity:    parseInt(document.getElementById('fQty').value)||0,
     timeNote:    document.getElementById('fTime').value.trim(),
     rawNote:     document.getElementById('fNote').value.trim(),
     distanceKm:  distKm,
