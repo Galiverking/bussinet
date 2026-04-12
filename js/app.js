@@ -839,6 +839,78 @@ function updateClock() {
 document.getElementById('cfCancel').onclick=()=>{ document.getElementById('confirmDlg').classList.add('hidden'); delTargetId=null; };
 document.getElementById('cfOk').onclick=()=>{ if(delTargetId){deleteJob(delTargetId);delTargetId=null;} document.getElementById('confirmDlg').classList.add('hidden'); };
 
+// ── Auto Cleanup & Export ─────────────────────────────────────
+function runAutoCleanup() {
+  const cutoff = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+  
+  jobs.forEach(j => {
+    if (new Date(j.createdAt).getTime() < cutoff) {
+      db.collection(COLLECTION).doc(j.id).delete().catch(()=>{});
+    }
+  });
+
+  expenses.forEach(e => {
+    if (new Date(e.createdAt).getTime() < cutoff) {
+      db.collection(EXP_COLLECTION).doc(e.id).delete().catch(()=>{});
+    }
+  });
+}
+
+function exportToCSV() {
+  let csvContent = "\uFEFF"; // BOM for UTF-8
+  csvContent += "Type,Date,Time,Status,Customer_Name,Phone,Location,Price_Amount,Wheel_Size,Quantity,Note,Tags\n";
+
+  // Export Jobs
+  jobs.forEach(j => {
+    let dt = new Date(j.createdAt);
+    let row = [
+      "Job",
+      dt.toLocaleDateString('th-TH'),
+      dt.toLocaleTimeString('th-TH'),
+      j.status,
+      j.customerName,
+      j.phone,
+      j.locationRaw,
+      j.price,
+      j.wheelStr,
+      j.quantity,
+      (j.timeNote || '') + " " + (j.rawNote || '').replace(/\n/g, " "),
+      j.tags
+    ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(",");
+    csvContent += row + "\n";
+  });
+
+  // Export Expenses
+  expenses.forEach(e => {
+    let dt = new Date(e.createdAt);
+    let row = [
+      "Expense",
+      dt.toLocaleDateString('th-TH'),
+      dt.toLocaleTimeString('th-TH'),
+      "done",
+      e.name,
+      "",
+      "",
+      e.amount,
+      "",
+      "",
+      "",
+      e.tags
+    ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(",");
+    csvContent += row + "\n";
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "logis_master_export_" + todayStr() + ".csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  toast('📥 ส่งออกไฟล์ CSV สำเร็จ', 'ok');
+}
+
 // Close modals on overlay click
 document.getElementById('parserModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeParserModal(); });
 document.getElementById('editModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeEditModal(); });
@@ -865,7 +937,14 @@ setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
   refreshDistances();
   renderAll();
   updateClock();
+  
   setInterval(updateClock, 15000);
+  setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
+  
+  // Clean up old items every 5 mins
+  setTimeout(runAutoCleanup, 3000);
+  setInterval(runAutoCleanup, 5 * 60000);
+
   // Auto-request GPS on first visit
   if (!userLoc) setTimeout(requestLocation, 1200);
 })();

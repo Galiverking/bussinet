@@ -226,7 +226,7 @@ html, body {
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #475569;
+  color: #64748b;
   margin: 18px 0 10px;
   display: flex;
   align-items: center;
@@ -553,10 +553,101 @@ input:checked + .slider:before {
 #syncStatus {
   font-size: 10px;
   font-weight: 700;
-  color: #475569;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .sync-on  { color: #22c55e !important; }
 .sync-off { color: #ef4444 !important; }
+
+/* ============================================================ */
+/* NEW DESKTOP & RESPONSIVE LAYOUT UPGRADES                    */
+/* ============================================================ */
+
+/* Background Glow Effects */
+.bg-glow {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.15;
+  animation: float 20s infinite alternate;
+}
+.bg-glow-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #60a5fa; }
+.bg-glow-2 { bottom: -10%; right: -10%; width: 50vw; height: 50vw; background: #a78bfa; animation-delay: -5s; }
+.bg-glow-3 { top: 40%; left: 60%; width: 30vw; height: 30vw; background: #34d399; animation-delay: -10s; }
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(5%, 10%) scale(1.1); }
+  100% { transform: translate(-5%, -5%) scale(0.9); }
+}
+
+/* App Layout */
+.app-layout {
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10;
+  box-shadow: 0 0 50px rgba(0,0,0,0.5);
+  border-left: 1px solid rgba(255,255,255,0.04);
+  border-right: 1px solid rgba(255,255,255,0.04);
+}
+
+.tab-content-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 110px; /* Safe padding for tab bar */
+}
+
+.app-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  z-index: 40;
+  border-left: 1px solid rgba(255,255,255,0.04);
+  border-right: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Enhancements for Job Cards and Items Hover */
+.job-pending, .man-item, .kpi-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+  will-change: transform;
+}
+.job-pending:hover, .man-item:hover, .kpi-card:hover {
+  transform: translateY(-2px);
+  z-index: 2;
+}
+
+.btn-hover-effect {
+  transition: transform 0.2s, background 0.2s;
+}
+.btn-hover-effect:active {
+  transform: scale(0.95);
+}
+
+/* Desktop Modal specific override */
+@media (min-width: 768px) {
+  .modal-sheet {
+    border-radius: 20px;
+    margin-bottom: auto;
+    margin-top: auto;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    max-height: 85vh;
+  }
+  .modal-overlay {
+    align-items: center; /* Center horizontally/vertically on desktop */
+  }
+}

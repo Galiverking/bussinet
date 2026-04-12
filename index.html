@@ -32,6 +32,11 @@
 </head>
 <body>
 
+<!-- ===== BACKGROUND EFFECTS ===== -->
+<div class="bg-glow bg-glow-1"></div>
+<div class="bg-glow bg-glow-2"></div>
+<div class="bg-glow bg-glow-3"></div>
+
 <!-- ===== TOAST ===== -->
 <div id="toast" class="toast hide"></div>
 
@@ -48,7 +53,7 @@
 </div>
 
 <!-- ===== MAIN APP ===== -->
-<div id="app" style="max-width:600px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative;">
+<div id="app" class="app-layout">
 
   <!-- Header -->
   <div class="app-hdr safe-top px-4 py-3">
@@ -84,7 +89,7 @@
   </div>
 
   <!-- Tab Content -->
-  <div id="tabContent" style="flex:1;overflow-y:auto;padding-bottom:80px;">
+  <div id="tabContent" class="tab-content-area">
 
     <!-- ======== SUMMARY TAB ======== -->
     <div id="tabSummary" class="px-4 pt-4">
@@ -167,7 +172,10 @@
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;">รายการทั้งหมด</h2>
-        <span id="manCount" style="font-size:12px;color:#94a3b8;"></span>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <span id="manCount" style="font-size:12px;color:#94a3b8;"></span>
+          <button onclick="exportToCSV()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(16,185,129,0.15);color:#34d399;font-weight:700;border:1px solid rgba(16,185,129,0.3);border-radius:8px;cursor:pointer;">📥 Export CSV</button>
+        </div>
       </div>
 
       <!-- Filter pills (scrollable) -->
@@ -193,7 +201,7 @@
   </div><!-- end tabContent -->
 
   <!-- Bottom Tab Bar -->
-  <div class="tab-bar safe-bot" style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:600px;display:flex;z-index:40;">
+  <div class="tab-bar safe-bot app-tab-bar">
     <button class="tab-item active" id="tabBtnSummary" onclick="switchTab('summary')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       สรุป
@@ -226,9 +234,9 @@
       คั่นงานด้วย <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">---</code> หรือ <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">☀️</code> หรือบรรทัดว่าง 2 บรรทัด
     </div>
 
-    <textarea id="parserInput" class="form-input" placeholder="ชื่อเฟส: วรรณา&#10;เบอร์: 0812345678&#10;พิกัด: 13.7367, 100.5232&#10;ราคา: 1500&#10;ล้อ 17 นิ้ว&#10;ไม่เกิน 17.00 น.&#10;---&#10;ชื่อเฟส: สมหมาย&#10;พิกัด: https://maps.app.goo.gl/xyz&#10;ราคา: 800"></textarea>
+    <textarea id="parserInput" class="form-input" placeholder="พิมพ์หรือวางข้อความที่นี่..."></textarea>
 
-    <button onclick="runParser()" style="width:100%;margin-top:10px;padding:13px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">
+    <button onclick="runParser()" class="btn-hover-effect" style="width:100%;margin-top:10px;padding:13px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">
       🔍 วิเคราะห์ข้อความ
     </button>
 
