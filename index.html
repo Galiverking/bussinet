@@ -102,21 +102,21 @@
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รายได้วันนี้</div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รายจ่ายวันนี้</div>
           <div style="display:flex;align-items:flex-end;gap:4px;">
-            <span id="kpiRevenue" style="font-size:22px;font-weight:800;color:#34d399;line-height:1;">0</span>
-            <span style="font-size:12px;color:#475569;margin-bottom:2px;">฿</span>
+            <span id="kpiExpense" style="font-size:22px;font-weight:800;color:#ef4444;line-height:1;">0</span>
+            <span style="font-size:12px;color:#cbd5e1;margin-bottom:2px;">฿</span>
           </div>
-          <div style="font-size:10px;color:#374151;margin-top:3px;">รวมทุกงาน</div>
+          <div style="font-size:10px;color:#cbd5e1;margin-top:3px;">รวมค่าล้อและอื่นๆ</div>
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ระยะทางรวม</div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">จำนวนล้อรวม (วันนี้)</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
-            <span id="kpiDist" style="font-size:26px;font-weight:800;color:#a78bfa;line-height:1;">—</span>
-            <span id="kpiDistUnit" style="font-size:12px;color:#475569;margin-bottom:2px;"></span>
+            <span id="kpiWheels" style="font-size:26px;font-weight:800;color:#a78bfa;line-height:1;">0</span>
+            <span id="kpiWheelsUnit" style="font-size:12px;color:#cbd5e1;margin-bottom:2px;">วง</span>
           </div>
-          <div style="font-size:10px;color:#374151;margin-top:3px;">งานค้างทั้งหมด</div>
+          <div style="font-size:10px;color:#cbd5e1;margin-top:3px;">จากงานทั้งหมดวันนี้</div>
         </div>
 
         <div class="kpi-card">
@@ -160,12 +160,14 @@
 
     </div>
 
+    </div>
+
     <!-- ======== MANAGE TAB ======== -->
     <div id="tabManage" class="px-4 pt-4" style="display:none;">
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;">รายการทั้งหมด</h2>
-        <span id="manCount" style="font-size:12px;color:#64748b;"></span>
+        <span id="manCount" style="font-size:12px;color:#94a3b8;"></span>
       </div>
 
       <!-- Filter pills (scrollable) -->
@@ -179,6 +181,15 @@
       <div id="manList"></div>
 
     </div>
+
+    <!-- ======== EXPENSE TAB ======== -->
+    <div id="tabExpense" class="px-4 pt-4" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;">บัญชีรายจ่าย</h2>
+        <button class="btn-primary" onclick="openExpenseModal()" style="padding:6px 12px;font-size:12px;border-radius:8px;">+ เพิ่มรายจ่าย</button>
+      </div>
+      <div id="expenseList"></div>
+    </div>
   </div><!-- end tabContent -->
 
   <!-- Bottom Tab Bar -->
@@ -190,6 +201,10 @@
     <button class="tab-item" id="tabBtnManage" onclick="switchTab('manage')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       จัดการ
+    </button>
+    <button class="tab-item" id="tabBtnExpense" onclick="switchTab('expense')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      รายจ่าย
     </button>
   </div>
 
@@ -266,20 +281,18 @@
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:8px;">ขนาดล้อ (นิ้ว)</label>
-        <div style="display:flex;gap:7px;">
-          <button class="w-btn" data-sz="15" onclick="pickWheel(15)">15"</button>
-          <button class="w-btn" data-sz="17" onclick="pickWheel(17)">17"</button>
-          <button class="w-btn" data-sz="18" onclick="pickWheel(18)">18"</button>
-          <button class="w-btn" data-sz="19" onclick="pickWheel(19)">19"</button>
-          <button class="w-btn" data-sz="20" onclick="pickWheel(20)">20"</button>
-          <button class="w-btn" data-sz="22" onclick="pickWheel(22)">22"</button>
-        </div>
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:8px;">ขนาดล้อ (วงล้อ)</label>
+        <input type="text" id="fWheelStr" class="form-input" placeholder="เช่น ขอบ18/4วง ขอบ15/2วง">
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">จำนวน (วง/ชิ้น)</label>
-        <input type="number" id="fQty" class="form-input" placeholder="เช่น 4" min="1">
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:5px;">จำนวนรวม (เก็บเป็นตัวเลขเพื่อคำนวณล้อรวม)</label>
+        <input type="number" id="fQty" class="form-input" placeholder="เช่น 6" min="1">
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:5px;">แท็ก (Tags)</label>
+        <input type="text" id="fTags" class="form-input" placeholder="เช่น น้ำมัน, พิเศษ (คั่นด้วยคอมม่าหรือเว้นวรรค)">
       </div>
 
       <div>
@@ -297,6 +310,44 @@
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button onclick="closeEditModal()" class="btn-secondary" style="flex:1;justify-content:center;">ยกเลิก</button>
       <button onclick="saveJob()" style="flex:2;padding:13px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">💾 บันทึก</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- EXPENSE MODAL                                                -->
+<!-- ============================================================ -->
+<div id="expenseModal" class="modal-overlay hidden">
+  <div class="modal-sheet">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:17px;font-weight:700;color:#f1f5f9;">💸 เพิ่มรายจ่าย (ทั่วไป)</h2>
+      <button onclick="closeExpenseModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#64748b;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:13px;">
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:5px;">รายการ / หัวข้อ *</label>
+        <input type="text" id="eName" class="form-input" placeholder="เช่น เติมน้ำมัน, ค่าข้าว">
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:5px;">จำนวนเงิน (บาท) *</label>
+        <input type="number" id="eAmount" class="form-input" placeholder="500">
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#94a3b8;display:block;margin-bottom:5px;">แท็กเพิ่มเติม</label>
+        <input type="text" id="eTags" class="form-input" placeholder="เช่น รถสไลด์, เบ็ดเตล็ด">
+      </div>
+      
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button onclick="closeExpenseModal()" class="btn-secondary" style="flex:1;justify-content:center;">ยกเลิก</button>
+      <button onclick="saveExpense()" style="flex:2;padding:13px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">💾 บันทึกรายจ่าย</button>
     </div>
 
   </div>

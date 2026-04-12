@@ -23,9 +23,9 @@ db.enablePersistence().catch((err) => {
 
 // ── State ────────────────────────────────────────────────────
 let jobs         = [];
+let expenses     = [];
 let currentTab   = 'summary';
 let userLoc      = null;    // { lat, lng }
-let selWheel     = 0;
 let editingId    = null;
 let parsedBuf    = [];
 let manFilter    = 'all';
@@ -36,6 +36,7 @@ const AVG_SPEED_KMH = 40; // ความเร็วเฉลี่ยกม./�
 // ── Storage ──────────────────────────────────────────────────
 const LS_LOC  = 'logis_loc';
 const COLLECTION = 'jobs';
+const EXP_COLLECTION = 'expenses';
 
 function loadJobs() {
   // Use Firestore onSnapshot with metadata to track real sync status
@@ -67,6 +68,13 @@ function loadJobs() {
       updateSyncStatus('error');
     }
   );
+
+  db.collection(EXP_COLLECTION).onSnapshot((snapshot) => {
+    const updated = [];
+    snapshot.forEach(doc => updated.push({ id: doc.id, ...doc.data() }));
+    expenses = updated;
+    renderAll();
+  });
 }
 
 function updateSyncStatus(state) {
@@ -208,22 +216,19 @@ function renderKPIs() {
   const { pending, done } = getSorted();
   const tod = todayStr();
   const todJobs = jobs.filter(j=>j.date===tod);
-  const revenue = todJobs.reduce((s,j)=>s+(j.price||0),0);
+  const todExpenses = expenses.filter(e=>e.date===tod);
 
-  const dists = pending.filter(j=>j.distanceKm!=null);
-  const totalDist = dists.reduce((s,j)=>s+j.distanceKm,0);
+  const jobExp = todJobs.reduce((s,j)=>s+(j.price||0),0);
+  const otherExp = todExpenses.reduce((s,e)=>s+(e.amount||0),0);
+  const totalExpense = jobExp + otherExp;
 
-  document.getElementById('kpiPending').textContent = pending.length;
-  document.getElementById('kpiDone').textContent    = done.length;
-  document.getElementById('kpiRevenue').textContent = revenue.toLocaleString('th-TH');
+  const totalWheels = todJobs.reduce((s,j)=>s+(j.quantity||0),0);
 
-  if (dists.length) {
-    document.getElementById('kpiDist').textContent     = totalDist.toFixed(1);
-    document.getElementById('kpiDistUnit').textContent = 'กม.';
-  } else {
-    document.getElementById('kpiDist').textContent     = '—';
-    document.getElementById('kpiDistUnit').textContent = '';
-  }
+  if(document.getElementById('kpiPending')) document.getElementById('kpiPending').textContent = pending.length;
+  if(document.getElementById('kpiDone')) document.getElementById('kpiDone').textContent    = done.length;
+  
+  if(document.getElementById('kpiExpense')) document.getElementById('kpiExpense').textContent = totalExpense.toLocaleString('th-TH');
+  if(document.getElementById('kpiWheels')) document.getElementById('kpiWheels').textContent = totalWheels.toLocaleString('th-TH');
 }
 
 // ── Render All ────────────────────────────────────────────────
@@ -232,6 +237,7 @@ function renderAll() {
   renderPending();
   renderDone();
   if (currentTab === 'manage') renderManage();
+  if (currentTab === 'expense') renderExpense();
 }
 
 // ── Pending section ───────────────────────────────────────────
@@ -291,9 +297,9 @@ function cardPending(j, pri) {
 
       <!-- Details -->
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
-        ${j.phone ? `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#94a3b8;">
+        ${getPhones(j.phone).map(p => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#94a3b8;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>
-          ${esc(j.phone)}</div>` : ''}
+          ${esc(p)}</div>`).join('')}
 
         ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;">
           <span>${locIcon}</span>
@@ -302,18 +308,19 @@ function cardPending(j, pri) {
         </div>` : ''}
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          ${j.price ? `<span style="font-size:13px;color:#34d399;font-weight:600;">฿${j.price.toLocaleString('th-TH')}</span>` : ''}
-          ${j.wheelSize ? `<span style="font-size:12px;color:#475569;">ล้อ ${j.wheelSize}"</span>` : ''}
-          ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">× ${j.quantity} วง</span>` : ''}
+          ${j.price ? `<span style="font-size:13px;color:#ef4444;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
+          ${j.wheelStr ? `<span style="font-size:12px;color:#475569;">${esc(j.wheelStr)}</span>` : ''}
+          ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>` : ''}
+          ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#94a3b8;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
           ${timeBadge}
         </div>
       </div>
 
       <!-- Action buttons -->
-      <div style="display:flex;gap:7px;">
-        ${j.phone ? `<a href="tel:${j.phone}" class="btn-call" style="flex:1;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>โทร</a>` : ''}
-        ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:${j.phone?'1':'2'};">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+        ${getPhones(j.phone).map(p => `<a href="tel:${p}" class="btn-call" style="flex:1;min-width:70px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>โทร</a>`).join('')}
+        ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>นำทาง</a>` : ''}
         <button onclick="completeJob('${j.id}')" class="btn-done" style="flex:1;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>เสร็จ</button>
@@ -384,11 +391,12 @@ function renderManage() {
 
       <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#64748b;margin-bottom:5px;">
         ${j.phone?`<span>📞 ${j.phone}</span>`:''}
-        ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:''}
-        ${j.wheelSize?`<span>🔵 ล้อ ${j.wheelSize}"</span>`:''}
-        ${j.quantity?`<span style="color:#c4b5fd;">× ${j.quantity} วง</span>`:''}
+        ${j.price?`<span style="color:#ef4444;">จ่าย ฿ ${j.price.toLocaleString('th-TH')}</span>`:''}
+        ${j.wheelStr?`<span>🔵 ${esc(j.wheelStr)}</span>`:''}
+        ${j.quantity?`<span style="color:#c4b5fd;">( ${j.quantity} วง )</span>`:''}
         ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
         ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
+        ${j.tags?`<span style="color:#94a3b8;background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:4px;">🏷️ ${esc(j.tags)}</span>`:''}
       </div>
 
       ${j.locationRaw?`<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
@@ -397,6 +405,46 @@ function renderManage() {
       <div style="margin-top:6px;font-size:10px;color:#374151;">
         ${new Date(j.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
         ${j.status==='done'?' • ✓ เสร็จแล้ว':''}
+      </div>
+    </div>`).join('');
+}
+
+// ── Expense Tab ───────────────────────────────────────────────
+function renderExpense() {
+  const tod = todayStr();
+  const todJobs = jobs.filter(j=>j.date===tod && (j.price||0)>0);
+  const todExpenses = expenses.filter(e=>e.date===tod);
+
+  let list = [];
+  todJobs.forEach(j => {
+    list.push({ isJob: true, title: `ค่าล้อ: ${j.customerName}`, amount: j.price, time: j.createdAt });
+  });
+  todExpenses.forEach(e => {
+    list.push({ isJob: false, id: e.id, title: e.name, amount: e.amount, tags: e.tags, time: e.createdAt });
+  });
+
+  list.sort((a,b)=> new Date(b.time) - new Date(a.time));
+
+  const el = document.getElementById('expenseList');
+  if(!list.length) {
+    el.innerHTML=`<div class="empty"><div style="font-size:36px;margin-bottom:8px;">💸</div><div style="font-size:14px;">ยังไม่มีรายจ่ายวันนี้</div></div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(e=>`
+    <div class="man-item mb-2" style="background:${e.isJob?'rgba(15,23,42,0.4)':'rgba(239,68,68,0.06)'};border-color:${e.isJob?'rgba(255,255,255,0.05)':'rgba(239,68,68,0.15)'};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px;">
+            ${e.isJob?'🚚 ':'💸 '}${esc(e.title)}
+          </div>
+          ${e.tags ? `<span style="font-size:10px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;color:#94a3b8;">${esc(e.tags)}</span>` : ''}
+          <div style="font-size:10px;color:#64748b;margin-top:6px;">${new Date(e.time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px;font-weight:700;color:#ef4444;">- ${e.amount.toLocaleString('th-TH')} ฿</div>
+          ${!e.isJob ? `<button onclick="deleteExpense('${e.id}')" style="margin-top:5px;font-size:10px;color:#94a3b8;background:transparent;border:1px solid #475569;border-radius:4px;padding:2px 6px;">ลบ</button>` : `<span style="font-size:10px;color:#64748b;">(อัตโนมัติ)</span>`}
+        </div>
       </div>
     </div>`).join('');
 }
@@ -618,41 +666,39 @@ function saveFromParser() {
 
 // ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
-  editingId=null; selWheel=0;
+  editingId=null;
   document.getElementById('editTitle').textContent='➕ เพิ่มงานใหม่';
   document.getElementById('editId').value='';
-  ['fName','fPhone','fLocation','fPrice','fQty','fTime','fNote'].forEach(id=>document.getElementById(id).value='');
+  ['fName','fPhone','fLocation','fPrice','fQty','fTime','fNote','fWheelStr','fTags'].forEach(id=>{
+    let el = document.getElementById(id);
+    if(el) el.value='';
+  });
   document.getElementById('locTypeHint').textContent='';
-  document.querySelectorAll('.w-btn').forEach(b=>b.classList.remove('sel'));
   document.getElementById('editModal').classList.remove('hidden');
   setTimeout(()=>document.getElementById('fName').focus(),80);
 }
 
 function openEditById(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  editingId=id; selWheel=j.wheelSize||0;
+  editingId=id;
   document.getElementById('editTitle').textContent='✏️ แก้ไขงาน';
   document.getElementById('editId').value=id;
   document.getElementById('fName').value=j.customerName||'';
   document.getElementById('fPhone').value=j.phone||'';
   document.getElementById('fLocation').value=j.locationRaw||'';
   document.getElementById('fPrice').value=j.price||'';
+  if(document.getElementById('fWheelStr')) document.getElementById('fWheelStr').value=j.wheelStr||'';
+  if(document.getElementById('fTags')) document.getElementById('fTags').value=j.tags||'';
   document.getElementById('fQty').value=j.quantity||'';
   document.getElementById('fTime').value=j.timeNote||'';
   document.getElementById('fNote').value=j.rawNote||'';
   updateLocTypeHint();
-  document.querySelectorAll('.w-btn').forEach(b=>b.classList.toggle('sel',parseInt(b.dataset.sz)===selWheel));
   document.getElementById('editModal').classList.remove('hidden');
   // Switch to manage-accessible view
   if (currentTab==='manage') setTimeout(()=>document.getElementById('editModal').classList.remove('hidden'),10);
 }
 
 function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); editingId=null; }
-
-function pickWheel(sz) {
-  selWheel = selWheel===sz ? 0 : sz;
-  document.querySelectorAll('.w-btn').forEach(b=>b.classList.toggle('sel',parseInt(b.dataset.sz)===selWheel));
-}
 
 function updateLocTypeHint() {
   const raw = document.getElementById('fLocation').value;
@@ -681,7 +727,8 @@ function saveJob() {
     locationRaw: locRaw,
     locationType: locType,
     price:       parseInt(document.getElementById('fPrice').value)||0,
-    wheelSize:   selWheel,
+    wheelStr:    document.getElementById('fWheelStr') ? document.getElementById('fWheelStr').value.trim() : '',
+    tags:        document.getElementById('fTags') ? document.getElementById('fTags').value.trim() : '',
     quantity:    parseInt(document.getElementById('fQty').value)||0,
     timeNote:    document.getElementById('fTime').value.trim(),
     rawNote:     document.getElementById('fNote').value.trim(),
@@ -711,14 +758,49 @@ function saveJob() {
 }
 
 
+// ── Expense Modal ─────────────────────────────────────────────
+function openExpenseModal() {
+  document.getElementById('eName').value='';
+  document.getElementById('eAmount').value='';
+  document.getElementById('eTags').value='';
+  document.getElementById('expenseModal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('eName').focus(),80);
+}
+function closeExpenseModal() { document.getElementById('expenseModal').classList.add('hidden'); }
+
+function saveExpense() {
+  const name = document.getElementById('eName').value.trim();
+  const amount = parseInt(document.getElementById('eAmount').value);
+  if(!name || isNaN(amount)){ toast('กรุณากรอกชื่อและจำนวนเงิน','err'); return; }
+
+  const newId = db.collection(EXP_COLLECTION).doc().id;
+  db.collection(EXP_COLLECTION).doc(newId).set({
+    name,
+    amount,
+    tags: document.getElementById('eTags').value.trim(),
+    createdAt: new Date().toISOString(),
+    date: todayStr()
+  }).then(()=>{
+    closeExpenseModal();
+    toast('✅ บันทึกรายจ่ายแล้ว','ok');
+  });
+}
+function deleteExpense(id) {
+  if(!confirm('ลบรายจ่ายนี้?')) return;
+  db.collection(EXP_COLLECTION).doc(id).delete().then(()=>toast('🗑️ ลบแล้ว','ok'));
+}
+
 // ── Tab navigation ────────────────────────────────────────────
 function switchTab(tab) {
   currentTab=tab;
   document.getElementById('tabSummary').style.display = tab==='summary'?'block':'none';
   document.getElementById('tabManage').style.display  = tab==='manage' ?'block':'none';
+  document.getElementById('tabExpense').style.display = tab==='expense'?'block':'none';
   document.getElementById('tabBtnSummary').classList.toggle('active', tab==='summary');
   document.getElementById('tabBtnManage').classList.toggle('active',  tab==='manage');
+  if(document.getElementById('tabBtnExpense')) document.getElementById('tabBtnExpense').classList.toggle('active',  tab==='expense');
   if (tab==='manage') renderManage();
+  if (tab==='expense') renderExpense();
 }
 
 function setFilter(f, el) {
@@ -728,6 +810,11 @@ function setFilter(f, el) {
 }
 
 // ── Utils ─────────────────────────────────────────────────────
+function getPhones(str) {
+  if(!str) return [];
+  return str.split(/[\/, ]+/).filter(p=>p.replace(/\D/g,'').length>=9);
+}
+
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

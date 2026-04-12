@@ -9,12 +9,12 @@
 }
 
 :root {
-  --bg-base: #0a0a1a;
-  --bg-surface: #0f172a;
-  --bg-surface-2: #1a2744;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
+  --bg-base: #111827;
+  --bg-surface: #1f2937;
+  --bg-surface-2: #374151;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
   --blue: #3b82f6;
   --green: #22c55e;
   --red: #ef4444;
@@ -58,10 +58,10 @@ html, body {
 
 /* --- Job Cards --- */
 .job-pending {
-  background: linear-gradient(145deg, #0e1f3c, #091628);
+  background: linear-gradient(145deg, #1f2937, #111827);
   border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 20px;
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   transition: border-color .2s, box-shadow .2s;
 }
 .job-pending:hover {
@@ -280,7 +280,7 @@ html, body {
 .modal-overlay.hidden { display: none; }
 
 .modal-sheet {
-  background: #0d1b35;
+  background: #1f2937;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-bottom: none;
   border-radius: 24px 24px 0 0;
