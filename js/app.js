@@ -28,6 +28,7 @@ let currentTab   = 'summary';
 let userLoc      = null;    // { lat, lng }
 let editingId    = null;
 let parsedBuf    = [];
+let queueParsedBuf = [];
 let manFilter    = 'all';
 let delTargetId  = null;
 let isManualSort = false;
@@ -195,7 +196,7 @@ function getETAText(distKm) {
 
 // ── Sorted jobs ───────────────────────────────────────────────
 function getSorted() {
-  const pending = jobs.filter(j=>j.status==='pending').sort((a,b)=>{
+  const pending = jobs.filter(j=>j.status==='pending' && !j.postponed).sort((a,b)=>{
     if (isManualSort) {
       return (a.priority || 0) - (b.priority || 0);
     }
@@ -204,10 +205,45 @@ function getSorted() {
     if (b.distanceKm!=null) return 1;
     return new Date(a.createdAt) - new Date(b.createdAt);
   });
+  const postponed = jobs.filter(j=>j.status==='pending' && j.postponed).sort((a,b)=>
+    new Date(a.postponeDate||'9999') - new Date(b.postponeDate||'9999')
+  );
   const done = jobs.filter(j=>j.status==='done').sort((a,b)=>
     new Date(b.completedAt||b.createdAt) - new Date(a.completedAt||a.createdAt)
   );
-  return { pending, done };
+  return { pending, postponed, done };
+}
+
+// ── ETA Clock ─────────────────────────────────────────────────
+const AVG_WORK_MINS = 30;
+
+function calcETAClocks(pendingJobs) {
+  const now = new Date();
+  let cumMins = 0;
+  return pendingJobs.map((j, i) => {
+    if (i > 0) {
+      const prev = pendingJobs[i-1];
+      if (prev.distanceKm != null && j.distanceKm != null) {
+        const distBetween = Math.abs(j.distanceKm - prev.distanceKm) || j.distanceKm;
+        cumMins += Math.ceil((distBetween / AVG_SPEED_KMH) * 60);
+      } else if (j.distanceKm != null) {
+        cumMins += Math.ceil((j.distanceKm / AVG_SPEED_KMH) * 60);
+      } else {
+        cumMins += 15;
+      }
+      cumMins += AVG_WORK_MINS;
+    } else {
+      if (j.distanceKm != null) {
+        cumMins += Math.ceil((j.distanceKm / AVG_SPEED_KMH) * 60);
+      }
+    }
+    const eta = new Date(now.getTime() + cumMins * 60000);
+    return { jobId: j.id, etaMins: cumMins, etaTime: eta };
+  });
+}
+
+function formatETAClock(etaTime) {
+  return `~${String(etaTime.getHours()).padStart(2,'0')}:${String(etaTime.getMinutes()).padStart(2,'0')} น.`;
 }
 
 
@@ -215,7 +251,7 @@ function getSorted() {
 function renderKPIs() {
   const { pending, done } = getSorted();
   const tod = todayStr();
-  const todJobs = jobs.filter(j=>j.date===tod);
+  const todJobs = jobs.filter(j=>j.date===tod && !j.postponed);
   const todExpenses = expenses.filter(e=>e.date===tod);
 
   const jobExp = todJobs.reduce((s,j)=>s+(j.price||0),0);
@@ -235,6 +271,7 @@ function renderKPIs() {
 function renderAll() {
   renderKPIs();
   renderPending();
+  renderPostponed();
   renderDone();
   if (currentTab === 'manage') renderManage();
   if (currentTab === 'expense') renderExpense();
@@ -243,21 +280,22 @@ function renderAll() {
 // ── Pending section ───────────────────────────────────────────
 function renderPending() {
   const { pending } = getSorted();
+  const etaList = calcETAClocks(pending);
   const el = document.getElementById('pendingSec');
   if (!pending.length) {
     el.innerHTML = `
       <div class="empty">
         <div style="font-size:44px;margin-bottom:10px;">🎉</div>
-        <div style="font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:4px;">ยังไม่มีงาน</div>
+        <div style="font-size:15px;font-weight:600;color:#a8b8cc;margin-bottom:4px;">ยังไม่มีงาน</div>
         <div style="font-size:12px;">เพิ่มงานใหม่หรือวางข้อความจากแชทด้านบน</div>
       </div>`;
     return;
   }
   el.innerHTML = `<div class="sec-h">งานค้าง (${pending.length})</div>` +
-    pending.map((j,i)=>cardPending(j,i+1)).join('');
+    pending.map((j,i)=>cardPending(j,i+1,etaList[i])).join('');
 }
 
-function cardPending(j, pri) {
+function cardPending(j, pri, etaInfo) {
   const mapsUrl = buildMapsUrl(j);
   const distBadge = j.distanceKm!=null
     ? `<span class="dist-badge">${j.distanceKm.toFixed(1)} กม.</span>` : '';
@@ -265,69 +303,97 @@ function cardPending(j, pri) {
     ? `<span class="time-tag">⏰ ${esc(j.timeNote)}</span>` : '';
   const locIcon  = LOC_ICON[j.locationType]  || '📍';
   const locLabel = LOC_LABEL[j.locationType] || '';
+  const etaBadge = etaInfo ? `<span class="eta-badge">🕐 ${formatETAClock(etaInfo.etaTime)}</span>` : '';
 
   const moveControls = isManualSort ? `
     <div style="display:flex;gap:6px;margin-left:10px;">
-      <button class="move-btn" onclick="moveJob('${j.id}', -1)" title="เลื่อนขึ้น" ${pri===1?'disabled':''}>
+      <button class="move-btn" onclick="event.stopPropagation();moveJob('${j.id}', -1)" title="เลื่อนขึ้น" ${pri===1?'disabled':''}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
       </button>
-      <button class="move-btn" onclick="moveJob('${j.id}', 1)" title="เลื่อนลง">
+      <button class="move-btn" onclick="event.stopPropagation();moveJob('${j.id}', 1)" title="เลื่อนลง">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
     </div>
   ` : '';
 
   return `
-  <div class="job-pending mb-3 fade-up" style="animation-delay:${(pri-1)*0.04}s">
+  <div class="job-pending mb-3 fade-up" style="animation-delay:${(pri-1)*0.04}s" onclick="openDetailModal('${j.id}')">
     <div style="padding:15px 16px;">
 
-      <!-- Row 1: priority + name + dist -->
+      <!-- Row 1: priority + name + dist + ETA -->
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
         <span class="badge${pri===1?' p1':''}">#${pri}</span>
         <span style="font-size:16px;font-weight:700;color:#f1f5f9;flex:1;line-height:1.3;">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
         <div style="display:flex;align-items:flex-end;gap:8px;">
            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
              ${distBadge}
-             ${j.distanceKm!=null ? `<span style="font-size:10px;color:#64748b;font-weight:700;">${getETAText(j.distanceKm)}</span>` : ''}
+             ${etaBadge}
            </div>
            ${moveControls}
         </div>
       </div>
 
-
       <!-- Details -->
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
-        ${getPhones(j.phone).map(p => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#94a3b8;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>
+        ${getPhones(j.phone).map(p => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#a8b8cc;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>
           ${esc(p)}</div>`).join('')}
 
-        ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;">
+        ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8899b0;">
           <span>${locIcon}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.locationRaw)}</span>
-          <span style="font-size:10px;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px;color:#64748b;flex-shrink:0;">${locLabel}</span>
+          <span style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;color:#8899b0;flex-shrink:0;">${locLabel}</span>
         </div>` : ''}
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          ${j.price ? `<span style="font-size:13px;color:#ef4444;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
-          ${j.wheelStr ? `<span style="font-size:12px;color:#475569;">${esc(j.wheelStr)}</span>` : ''}
+          ${j.price ? `<span style="font-size:13px;color:#f87171;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
+          ${j.wheelStr ? `<span style="font-size:12px;color:#8899b0;">${esc(j.wheelStr)}</span>` : ''}
           ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>` : ''}
-          ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#94a3b8;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
+          ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#a8b8cc;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
           ${timeBadge}
         </div>
       </div>
 
       <!-- Action buttons -->
-      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;" onclick="event.stopPropagation()">
         ${getPhones(j.phone).map(p => `<a href="tel:${p}" class="btn-call" style="flex:1;min-width:70px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>โทร</a>`).join('')}
         ${mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>นำทาง</a>` : ''}
+        <button onclick="openPostponeModal('${j.id}')" class="btn-postpone" style="flex:1;">🔄 เลื่อน</button>
         <button onclick="completeJob('${j.id}')" class="btn-done" style="flex:1;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>เสร็จ</button>
       </div>
 
     </div>
   </div>`;
+}
+
+// ── Postponed section ─────────────────────────────────────────
+function renderPostponed() {
+  const { postponed } = getSorted();
+  const el = document.getElementById('postponedSec');
+  if (!el) return;
+  if (!postponed.length) { el.innerHTML=''; return; }
+  el.innerHTML = `<div class="sec-h">เลื่อนนัด (${postponed.length})</div>` +
+    postponed.map(j=>{
+      const dateLabel = j.postponeDate 
+        ? new Date(j.postponeDate).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
+        : 'ไม่มีกำหนด';
+      return `
+      <div class="job-postponed mb-2" onclick="openDetailModal('${j.id}')">
+        <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;">
+          <div style="width:20px;height:20px;background:rgba(251,191,36,0.13);border:1px solid rgba(251,191,36,0.28);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:10px;">🔄</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:11px;color:#8899b0;">📅 ${dateLabel}</div>
+          </div>
+          <button onclick="event.stopPropagation();undoPostpone('${j.id}')" style="font-size:11px;color:#fbbf24;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">คืนคิว</button>
+        </div>
+      </div>`;
+    }).join('');
 }
 
 // ── Done section ──────────────────────────────────────────────
@@ -343,10 +409,10 @@ function renderDone() {
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>
         </div>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:600;color:#4b5563;text-decoration:line-through;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
-          ${j.price?`<div style="font-size:11px;color:#374151;">${j.price.toLocaleString('th-TH')} ฿</div>`:''}
+          <div style="font-size:13px;font-weight:600;color:#6b7f99;text-decoration:line-through;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
+          ${j.price?`<div style="font-size:11px;color:#5a6d84;">${j.price.toLocaleString('th-TH')} ฿</div>`:''}
         </div>
-        <button onclick="undoJob('${j.id}')" style="font-size:11px;color:#64748b;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ย้อน</button>
+        <button onclick="undoJob('${j.id}')" style="font-size:11px;color:#8899b0;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ย้อน</button>
       </div>
     </div>`).join('');
 }
@@ -544,74 +610,107 @@ function runParser() {
 }
 
 function parseText(text) {
-  // Enhanced splitting: handle sun emojis, lines of symbols, or multiple newlines
-  let blocks = text.split(/\n\s*[☀️🌞\-\*=\?]{3,}\s*\n/);
+  // Split by lines of repeated emojis (any emoji 3+), or repeated symbols
+  let blocks = text.split(/\n\s*(?:(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{1F900}-\u{1F9FF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDDFF]){3,}|[\-\*=]{3,})\s*\n/u);
   if (blocks.length <= 1) blocks = text.split(/\n\s*\n\s*\n/);
   
-  blocks = blocks.map(b => b.trim()).filter(b => b.length > 5);
+  blocks = blocks.map(b => b.replace(/^นัดรับวัน.+$/m, '').trim()).filter(b => b.length > 5);
   return blocks.map(parseBlock).filter(j => j.customerName || j.phone || j.locationRaw);
 }
 
 function parseBlock(block) {
   const job = { id: genId(), status: 'pending', createdAt: new Date().toISOString(), date: todayStr(), distanceKm: null, priority: 0, quantity: 0 };
 
-  // Customer name: handle "ชื่อเฟส : Thanut" or similar
+  // Customer name
   let m = block.match(/ชื่อ(?:เฟส)?\s*[:：]\s*(.+)/i);
   if (m) job.customerName = m[1].trim().split('\n')[0].trim();
   
   if (!job.customerName) {
-    // fallback: first line that doesn't start with digits. or keyword
     const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
     for (const line of lines) {
-      if (!/^\d+\.พิกัด|โทร|ล้อ|ราคา|ชื่อ|ไม่เกิน/i.test(line)) {
+      if (!/^\d+\.พิกัด|โทร|ล้อ|ราคา|ชื่อ|ไม่เกิน|ก่อน|หลัง|รวม|\*\*/i.test(line) &&
+          !/^(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDDFF]){2,}/u.test(line)) {
         job.customerName = line.replace(/^[☀️🌞🌟\-\s#*0-9.]+/,'').trim().split('\n')[0].trim();
         if (job.customerName) break;
       }
     }
   }
 
-  // Phone: handle hyphens and spaces
-  m = block.match(/(?:เบอร์|โทร|Tel|Phone)\s*[:：]?\s*([\d\s\-]{9,15})/i) ||
-      block.match(/(0[\d\s\-]{8,12})/);
-  if (m) job.phone = m[1].replace(/\D/g, '').slice(0, 10);
+  // Phone with multi-number support
+  m = block.match(/(?:เบอร์|โทร|Tel|Phone)\s*[:：]?\s*([\d\s\-]{9,15})/i);
+  if (m) {
+    job.phone = m[1].replace(/\D/g, '').slice(0, 10);
+    const phoneArea = block.substring(block.indexOf(m[0]));
+    const lines = phoneArea.split('\n').map(l=>l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      const secondLine = lines[1].replace(/\D/g, '');
+      if (/^0\d{8,9}$/.test(secondLine)) job.phone += '/' + secondLine;
+    }
+  } else {
+    m = block.match(/(0[\d\s\-]{8,12})/);
+    if (m) job.phone = m[1].replace(/\D/g, '').slice(0, 10);
+  }
 
-  // Location: handle numbered prefix like "1.พิกัด :"
+  // Location
   m = block.match(/(?:\d+\.)?พิกัด\s*[:：]\s*(.+)/i) || 
       block.match(/(?:ที่อยู่|สถานที่|Location|Maps?)\s*[:：]\s*(.+)/i);
   if (m) {
     job.locationRaw = m[1].trim().split('\n')[0].trim();
     job.locationType = classifyLoc(job.locationRaw);
   } else if (!job.customerName) {
-     // If we still don't have location, check first line if it looks like GPS
-     const first = block.split('\n')[0];
-     if (classifyLoc(first) !== 'place') {
-        job.locationRaw = first.trim();
-        job.locationType = classifyLoc(job.locationRaw);
-     }
+    const first = block.split('\n')[0];
+    if (classifyLoc(first) !== 'place') {
+      job.locationRaw = first.trim();
+      job.locationType = classifyLoc(job.locationRaw);
+    }
   }
 
-  // Price: handle "ราคา 3,000 บ." or "ราคา:3,000"
-  m = block.match(/ราคา\s*[:：]?\s*([\d,]+)/i);
-  if (m) job.price = parseInt(m[1].replace(/,/g, ''));
+  // Wheel string + price: "ล้อ :17/4วงราคา2,000 บาท"
+  const wheelMatch = block.match(/ล้อ\s*[:：|]\s*(.+)/i);
+  if (wheelMatch) {
+    const wheelLine = wheelMatch[1].trim();
+    job.wheelStr = wheelLine.replace(/ราคา[\s:]*[\d,]+\s*(?:บ\.?|บาท)?/gi, '').replace(/\*\*.+?\*\*/g,'').trim();
+    
+    // Total price **รวมX,XXXบาท**
+    const totalMatch = block.match(/\*\*\s*รวม\s*([\d,]+)\s*(?:บ\.?|บาท)?\s*\*\*/i);
+    if (totalMatch) {
+      job.price = parseInt(totalMatch[1].replace(/,/g, ''));
+    } else {
+      const priceM = wheelLine.match(/ราคา\s*[:：]?\s*([\d,]+)/i);
+      if (priceM) job.price = parseInt(priceM[1].replace(/,/g, ''));
+    }
+    
+    // Quantity from wheel
+    const qtyMatches = wheelLine.match(/[\/|](\d+)\s*วง/gi);
+    if (qtyMatches) {
+      job.quantity = qtyMatches.reduce((sum, q) => sum + parseInt(q.match(/(\d+)/)[1]), 0);
+    }
+  }
 
-  // Wheel size: handle "ล้อ :19/4วง"
-  m = block.match(/ล้อ\s*[:：]\s*(\d+)/i) || 
-      block.match(/(?:ล้อ|วง|ขนาด)\s*(15|17|18|19|20|22)\s*(?:นิ้ว|")?|(?:^|\s)(15|17|18|19|20|22)\s*(?:นิ้ว)/m);
-  if (m) job.wheelSize = parseInt(m[1] || m[2]);
+  // Fallback price
+  if (!job.price) {
+    m = block.match(/ราคา\s*[:：]?\s*([\d,]+)/i);
+    if (m) job.price = parseInt(m[1].replace(/,/g, ''));
+  }
 
-  // Quantity: handle "4 วง", "จำนวน: 4", "x4", "/4วง"
-  m = block.match(/จำนวน\s*[:：]?\s*(\d+)/i) ||
-      block.match(/(\d+)\s*(?:วง|ชิ้น|เส้น|ลูก|ชุด)/i) ||
-      block.match(/[x×\/](\d+)\s*(?:วง|ชิ้น|เส้น)?/i);
-  if (m) job.quantity = parseInt(m[1]);
+  // Fallback quantity
+  if (!job.quantity) {
+    m = block.match(/(\d+)\s*(?:วง|ชิ้น|เส้น)/i) || block.match(/[x×\/|](\d+)\s*วง/i);
+    if (m) job.quantity = parseInt(m[1]);
+  }
 
-  // Time note: handle "**ไม่เกิน17.00น.**"
-  m = block.match(/(?:ไม่เกิน|ก่อน|ภายใน|by|deadline)\s*([^* \n]+)/i);
-  if (m) job.timeNote = m[0].replace(/\*/g, '').trim().slice(0, 40);
+  // Time note: any text between ** ** markers, or common time keywords
+  m = block.match(/\*\*\s*(.+?)\s*\*\*/i);
+  if (m && !/^รวม/i.test(m[1])) {
+    job.timeNote = m[1].trim().slice(0, 50);
+  }
+  if (!job.timeNote) {
+    m = block.match(/((?:ก่อน|หลัง|ไม่เกิน|ภายใน|ตั้งแต่|ช่วง|เวลา|นัด|รอ|ประมาณ|ถึง).{2,40})/i);
+    if (m) job.timeNote = m[1].replace(/\*/g, '').trim().slice(0, 50);
+  }
 
   job.rawNote = block;
 
-  // Calc distance
   if (job.locationType === 'coords' && userLoc) {
     const c = parseCoords(job.locationRaw);
     if (c) job.distanceKm = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
@@ -914,6 +1013,190 @@ function exportToCSV() {
 // Close modals on overlay click
 document.getElementById('parserModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeParserModal(); });
 document.getElementById('editModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeEditModal(); });
+document.getElementById('detailModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeDetailModal(); });
+document.getElementById('postponeModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closePostponeModal(); });
+document.getElementById('queueParserModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeQueueParserModal(); });
+
+// ── Detail Modal ──────────────────────────────────────────────
+function openDetailModal(id) {
+  const j = jobs.find(x=>x.id===id); if(!j) return;
+  const mapsUrl = buildMapsUrl(j);
+  const locIcon = LOC_ICON[j.locationType] || '📍';
+  
+  let rows = '';
+  rows += `<div class="detail-row"><div class="detail-label">ชื่อ</div><div class="detail-value" style="font-weight:700;font-size:16px;">${esc(j.customerName||'ไม่ระบุ')}</div></div>`;
+  if(j.phone) rows += `<div class="detail-row"><div class="detail-label">เบอร์โทร</div><div class="detail-value">${getPhones(j.phone).map(p=>`<a href="tel:${p}" style="color:#60a5fa;text-decoration:none;">${esc(p)}</a>`).join(', ')}</div></div>`;
+  if(j.locationRaw) rows += `<div class="detail-row"><div class="detail-label">${locIcon} พิกัด</div><div class="detail-value">${esc(j.locationRaw)}</div></div>`;
+  if(j.price) rows += `<div class="detail-row"><div class="detail-label">ราคา</div><div class="detail-value" style="color:#f87171;font-weight:600;">฿${j.price.toLocaleString('th-TH')}</div></div>`;
+  if(j.wheelStr) rows += `<div class="detail-row"><div class="detail-label">ล้อ</div><div class="detail-value">${esc(j.wheelStr)}</div></div>`;
+  if(j.quantity) rows += `<div class="detail-row"><div class="detail-label">จำนวน</div><div class="detail-value" style="color:#c4b5fd;font-weight:600;">${j.quantity} วง</div></div>`;
+  if(j.tags) rows += `<div class="detail-row"><div class="detail-label">แท็ก</div><div class="detail-value">🏷️ ${esc(j.tags)}</div></div>`;
+  if(j.timeNote) rows += `<div class="detail-row"><div class="detail-label">เงื่อนไข</div><div class="detail-value" style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</div></div>`;
+  if(j.distanceKm!=null) rows += `<div class="detail-row"><div class="detail-label">ระยะทาง</div><div class="detail-value" style="color:#93c5fd;">${j.distanceKm.toFixed(1)} กม. (${getETAText(j.distanceKm)})</div></div>`;
+  if(j.postponed) {
+    const dl = j.postponeDate ? new Date(j.postponeDate).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit'}) : 'ไม่มีกำหนด';
+    rows += `<div class="detail-row"><div class="detail-label">เลื่อนนัด</div><div class="detail-value"><span class="postpone-tag">🔄 ${dl}</span></div></div>`;
+  }
+  if(j.rawNote) rows += `<div class="detail-row"><div class="detail-label">หมายเหตุ</div><div class="detail-value" style="font-size:12px;color:#8899b0;white-space:pre-wrap;">${esc(j.rawNote)}</div></div>`;
+  rows += `<div class="detail-row"><div class="detail-label">สร้างเมื่อ</div><div class="detail-value" style="font-size:12px;color:#6b7f99;">${new Date(j.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`;
+  
+  document.getElementById('detailContent').innerHTML = rows;
+  
+  // Action buttons
+  let actions = '';
+  if(j.status==='pending' && !j.postponed) {
+    getPhones(j.phone).forEach(p => {
+      actions += `<a href="tel:${p}" class="btn-call" style="flex:1;">📞 โทร</a>`;
+    });
+    if(mapsUrl) actions += `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">📍 นำทาง</a>`;
+    actions += `<button onclick="openPostponeModal('${j.id}');closeDetailModal();" class="btn-postpone" style="flex:1;">🔄 เลื่อน</button>`;
+    actions += `<button onclick="completeJob('${j.id}');closeDetailModal();" class="btn-done" style="flex:1;">✅ เสร็จ</button>`;
+  }
+  if(j.postponed) {
+    actions += `<button onclick="undoPostpone('${j.id}');closeDetailModal();" style="flex:1;padding:12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">↩️ คืนคิว</button>`;
+  }
+  actions += `<button onclick="openEditById('${j.id}');closeDetailModal();" style="flex:1;padding:12px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#818cf8;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">✏️ แก้ไข</button>`;
+  actions += `<button onclick="doConfirmDelete('${j.id}');closeDetailModal();" style="flex:1;padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">🗑️ ลบ</button>`;
+  
+  document.getElementById('detailActions').innerHTML = actions;
+  document.getElementById('detailModal').classList.remove('hidden');
+}
+function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden'); }
+
+// ── Postpone Modal ────────────────────────────────────────────
+function openPostponeModal(id) {
+  const j = jobs.find(x=>x.id===id); if(!j) return;
+  document.getElementById('postponeJobId').value = id;
+  document.getElementById('postponeJobName').textContent = `เลื่อนนัด "${j.customerName||'ไม่ระบุ'}"`;
+  document.getElementById('postponeDate').value = '';
+  document.getElementById('postponeModal').classList.remove('hidden');
+}
+function closePostponeModal() { document.getElementById('postponeModal').classList.add('hidden'); }
+
+function doPostpone(noDate) {
+  const id = document.getElementById('postponeJobId').value;
+  if (!id) return;
+  const dateVal = noDate ? null : document.getElementById('postponeDate').value;
+  if (!noDate && !dateVal) { toast('กรุณาเลือกวันที่','err'); return; }
+  
+  const j = jobs.find(x=>x.id===id);
+  db.collection(COLLECTION).doc(id).update({
+    postponed: true,
+    postponeDate: dateVal || null
+  }).then(() => {
+    closePostponeModal();
+    const label = dateVal ? new Date(dateVal).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : 'ไม่มีกำหนด';
+    toast(`🔄 เลื่อนนัด "${j?j.customerName:''}" → ${label}`, 'info');
+  });
+}
+
+function undoPostpone(id) {
+  db.collection(COLLECTION).doc(id).update({
+    postponed: false,
+    postponeDate: null
+  }).then(() => {
+    toast('↩️ คืนกลับเข้าคิวแล้ว', 'ok');
+  });
+}
+
+// ── Queue Parser (Auto Queue from text) ───────────────────────
+function openQueueParserModal() {
+  document.getElementById('queueParserModal').classList.remove('hidden');
+  document.getElementById('queueInput').value = '';
+  document.getElementById('queuePreview').style.display = 'none';
+  queueParsedBuf = [];
+  setTimeout(()=>document.getElementById('queueInput').focus(), 80);
+}
+function closeQueueParserModal() {
+  document.getElementById('queueParserModal').classList.add('hidden');
+  queueParsedBuf = [];
+}
+
+function runQueueParser() {
+  const raw = document.getElementById('queueInput').value.trim();
+  if (!raw) { toast('กรุณาวางข้อความก่อน','err'); return; }
+  
+  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  let currentDate = todayStr();
+  const result = [];
+  
+  for (const line of lines) {
+    // Check if it's a date header
+    const dateMatch = line.match(/นัดรับวัน.+?(?:ที่\s*)?(\d{1,2})\s*(?:เมษา?\.?|เมย\.?|มี\.?ค\.?|พ\.?ค\.?|ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{2,4})?/i);
+    if (dateMatch || /^นัดรับวัน/i.test(line)) {
+      // We just note it's a new batch, keep using todayStr for now
+      continue;
+    }
+    
+    // Skip empty-like lines
+    if (line.length < 2) continue;
+    
+    // This is a location/place name
+    result.push({
+      id: genId(),
+      status: 'pending',
+      customerName: line,
+      locationRaw: line,
+      locationType: 'place',
+      createdAt: new Date().toISOString(),
+      date: currentDate,
+      distanceKm: null,
+      priority: result.length,
+      quantity: 0,
+      price: 0,
+      phone: '',
+      wheelStr: '',
+      tags: '',
+      timeNote: '',
+      rawNote: line
+    });
+  }
+  
+  queueParsedBuf = result;
+  
+  const el = document.getElementById('queuePreviewList');
+  const btn = document.getElementById('btnSaveQueue');
+  if (!result.length) {
+    el.innerHTML = `<div style="text-align:center;padding:16px;color:#f87171;">ไม่พบรายการ</div>`;
+    btn.style.display = 'none';
+    document.getElementById('queuePreview').style.display = 'block';
+    return;
+  }
+  
+  btn.style.display = 'block';
+  btn.textContent = `💾 บันทึก ${result.length} รายการ`;
+  el.innerHTML = result.map((j,i) => `
+    <div class="parse-card ok">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="badge">#${i+1}</span>
+        <span style="font-size:13px;font-weight:600;color:#f1f5f9;">${esc(j.customerName)}</span>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('queuePreview').style.display = 'block';
+}
+
+function saveFromQueueParser() {
+  if (!queueParsedBuf.length) return;
+  const batch = db.batch();
+  queueParsedBuf.forEach(j => {
+    const ref = db.collection(COLLECTION).doc(j.id);
+    batch.set(ref, j);
+  });
+  batch.commit().then(() => {
+    closeQueueParserModal();
+    toast(`✅ จัดคิว ${queueParsedBuf.length} รายการแล้ว`, 'ok');
+    // Switch to manual sort to preserve queue order
+    if (!isManualSort) {
+      isManualSort = true;
+      localStorage.setItem('logis_manualSort', 'true');
+      const toggle = document.getElementById('sortToggle');
+      if (toggle) toggle.checked = true;
+      document.getElementById('sortLabel').textContent = 'MANUAL';
+      document.getElementById('sortLabel').style.color = '#60a5fa';
+    }
+  });
+}
 
 // ── Live timer (distance refresh every 60s) ───────────────────
 setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
@@ -929,7 +1212,7 @@ setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
       if (toggle) {
         toggle.checked = isManualSort;
         document.getElementById('sortLabel').textContent = isManualSort ? 'MANUAL' : 'AUTO';
-        document.getElementById('sortLabel').style.color = isManualSort ? '#3b82f6' : '#475569';
+        document.getElementById('sortLabel').style.color = isManualSort ? '#60a5fa' : '#7a8ba0';
       }
     }
   } catch{}
