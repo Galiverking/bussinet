@@ -669,14 +669,14 @@ function parseBlock(block) {
   const wheelMatch = block.match(/ล้อ\s*[:：|]\s*(.+)/i);
   if (wheelMatch) {
     const wheelLine = wheelMatch[1].trim();
-    job.wheelStr = wheelLine.replace(/ราคา[\s:]*[\d,]+\s*(?:บ\.?|บาท)?/gi, '').replace(/\*\*.+?\*\*/g,'').trim();
+    job.wheelStr = wheelLine.replace(/ราคา[\s:]*[\d,]+(?:\s*(?:บ\.?|บาท))?/gi, '').replace(/[\d,]+\s*(?:บ\.?|บาท)/gi, '').replace(/\*\*.+?\*\*/g,'').trim();
     
     // Total price **รวมX,XXXบาท**
     const totalMatch = block.match(/\*\*\s*รวม\s*([\d,]+)\s*(?:บ\.?|บาท)?\s*\*\*/i);
     if (totalMatch) {
       job.price = parseInt(totalMatch[1].replace(/,/g, ''));
     } else {
-      const priceM = wheelLine.match(/ราคา\s*[:：]?\s*([\d,]+)/i);
+      const priceM = wheelLine.match(/ราคา\s*[:：]?\s*([\d,]+)/i) || wheelLine.match(/([\d,]+)\s*(?:บ\.|บาท)/i);
       if (priceM) job.price = parseInt(priceM[1].replace(/,/g, ''));
     }
     
@@ -689,7 +689,7 @@ function parseBlock(block) {
 
   // Fallback price
   if (!job.price) {
-    m = block.match(/ราคา\s*[:：]?\s*([\d,]+)/i);
+    m = block.match(/ราคา\s*[:：]?\s*([\d,]+)/i) || block.match(/([\d,]+)\s*(?:บ\.|บาท)/i);
     if (m) job.price = parseInt(m[1].replace(/,/g, ''));
   }
 
@@ -1117,59 +1117,79 @@ function runQueueParser() {
   if (!raw) { toast('กรุณาวางข้อความก่อน','err'); return; }
   
   const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
-  let currentDate = todayStr();
-  const result = [];
+  const pendingJobs = jobs.filter(j => j.status === 'pending');
+  const matchedJobs = [];
+  const usedIds = new Set();
+  
+  const thNums = {'หนึ่ง':'1','เอ็ด':'1','สอง':'2','สาม':'3','สี่':'4','ห้า':'5','หก':'6','เจ็ด':'7','แปด':'8','เก้า':'9'};
+  const norm = (s) => {
+    let str = (s || '').toLowerCase().replace(/[\s\(\)]+/g, '');
+    for (let k in thNums) str = str.replace(new RegExp(k, 'g'), thNums[k]);
+    return str;
+  };
   
   for (const line of lines) {
-    // Check if it's a date header
-    const dateMatch = line.match(/นัดรับวัน.+?(?:ที่\s*)?(\d{1,2})\s*(?:เมษา?\.?|เมย\.?|มี\.?ค\.?|พ\.?ค\.?|ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{2,4})?/i);
-    if (dateMatch || /^นัดรับวัน/i.test(line)) {
-      // We just note it's a new batch, keep using todayStr for now
-      continue;
-    }
-    
-    // Skip empty-like lines
+    if (/^นัดรับวัน/i.test(line)) continue;
     if (line.length < 2) continue;
     
-    // This is a location/place name
-    result.push({
-      id: genId(),
-      status: 'pending',
-      customerName: line,
-      locationRaw: line,
-      locationType: 'place',
-      createdAt: new Date().toISOString(),
-      date: currentDate,
-      distanceKm: null,
-      priority: result.length,
-      quantity: 0,
-      price: 0,
-      phone: '',
-      wheelStr: '',
-      tags: '',
-      timeNote: '',
-      rawNote: line
-    });
+    const searchStr = norm(line);
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const j of pendingJobs) {
+      if (usedIds.has(j.id)) continue;
+      
+      const locStr = norm(j.locationRaw);
+      const nameStr = norm(j.customerName);
+      const noteStr = norm(j.rawNote);
+      
+      let score = 0;
+      if (locStr.includes(searchStr) || searchStr.includes(locStr) && locStr.length > 3) score = 10;
+      else if (nameStr.includes(searchStr) || searchStr.includes(nameStr) && nameStr.length > 2) score = 8;
+      else if (noteStr.includes(searchStr)) score = 7;
+      
+      if (score === 0) {
+        for(let i=0; i<searchStr.length - 4; i++) {
+           const chunk = searchStr.substring(i, i+5);
+           if (locStr.includes(chunk) || noteStr.includes(chunk)) score = Math.max(score, 5);
+        }
+      }
+
+      if (score > bestScore) {
+         bestScore = score;
+         bestMatch = j;
+      }
+    }
+    
+    if (bestMatch) {
+      matchedJobs.push(bestMatch);
+      usedIds.add(bestMatch.id);
+    }
   }
   
-  queueParsedBuf = result;
+  for (const j of pendingJobs) {
+    if (!usedIds.has(j.id)) matchedJobs.push(j);
+  }
+  
+  queueParsedBuf = matchedJobs;
   
   const el = document.getElementById('queuePreviewList');
   const btn = document.getElementById('btnSaveQueue');
-  if (!result.length) {
-    el.innerHTML = `<div style="text-align:center;padding:16px;color:#f87171;">ไม่พบรายการ</div>`;
+  if (!matchedJobs.length) {
+    el.innerHTML = `<div style="text-align:center;padding:16px;color:#f87171;">ไม่พบรายการที่จะจัดคิว</div>`;
     btn.style.display = 'none';
     document.getElementById('queuePreview').style.display = 'block';
     return;
   }
   
   btn.style.display = 'block';
-  btn.textContent = `💾 บันทึก ${result.length} รายการ`;
-  el.innerHTML = result.map((j,i) => `
+  btn.textContent = `💾 บันทึกคิว ${matchedJobs.length} งาน`;
+  el.innerHTML = matchedJobs.map((j,i) => `
     <div class="parse-card ok">
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="badge">#${i+1}</span>
         <span style="font-size:13px;font-weight:600;color:#f1f5f9;">${esc(j.customerName)}</span>
+        <span style="font-size:11px;color:#94a3b8;flex:1;text-align:right;">${esc((j.locationRaw||'').slice(0, 20))}</span>
       </div>
     </div>
   `).join('');
@@ -1179,14 +1199,13 @@ function runQueueParser() {
 function saveFromQueueParser() {
   if (!queueParsedBuf.length) return;
   const batch = db.batch();
-  queueParsedBuf.forEach(j => {
+  queueParsedBuf.forEach((j, i) => {
     const ref = db.collection(COLLECTION).doc(j.id);
-    batch.set(ref, j);
+    batch.update(ref, { priority: i + 1 });
   });
   batch.commit().then(() => {
     closeQueueParserModal();
     toast(`✅ จัดคิว ${queueParsedBuf.length} รายการแล้ว`, 'ok');
-    // Switch to manual sort to preserve queue order
     if (!isManualSort) {
       isManualSort = true;
       localStorage.setItem('logis_manualSort', 'true');
@@ -1195,6 +1214,7 @@ function saveFromQueueParser() {
       document.getElementById('sortLabel').textContent = 'MANUAL';
       document.getElementById('sortLabel').style.color = '#60a5fa';
     }
+    renderAll();
   });
 }
 
