@@ -104,6 +104,9 @@ function todayStr() { return new Date().toISOString().split('T')[0]; }
 function classifyLoc(raw) {
   if (!raw) return 'place';
   const t = raw.trim();
+  // Placeholder check (Thai phrases)
+  if (/(?:ช่องแชท|ทางไลน์|ทักแชท|ส่งให้ในแชท|ทางข้อความ|ส่งในแชท)/i.test(t))
+    return 'placeholder';
   // URL check
   if (/^https?:\/\//i.test(t) || /maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.|google\.com\/maps/i.test(t))
     return 'url';
@@ -113,12 +116,12 @@ function classifyLoc(raw) {
   return 'place';
 }
 
-const LOC_ICON = { coords:'🗺️', url:'🔗', place:'📍' };
-const LOC_LABEL = { coords:'GPS พิกัด', url:'ลิ้งค์ Maps', place:'ชื่อสถานที่' };
-const LOC_COLOR = { coords:'#93c5fd', url:'#86efac', place:'#fcd34d' };
+const LOC_ICON = { coords:'🗺️', url:'🔗', place:'📍', placeholder:'💬' };
+const LOC_LABEL = { coords:'GPS พิกัด', url:'ลิ้งค์ Maps', place:'ชื่อสถานที่', placeholder:'รอลิ้งค์ในแชท' };
+const LOC_COLOR = { coords:'#93c5fd', url:'#86efac', place:'#fcd34d', placeholder:'#a78bfa' };
 
 function buildMapsUrl(job) {
-  if (!job.locationRaw) return null;
+  if (!job.locationRaw || job.locationType === 'placeholder') return null;
   switch(job.locationType) {
     case 'url':    return job.locationRaw;
     case 'coords': return `https://maps.google.com/?q=${job.locationRaw.replace(/\s/g,'')}`;
@@ -251,20 +254,24 @@ function formatETAClock(etaTime) {
 function renderKPIs() {
   const { pending, done } = getSorted();
   const tod = todayStr();
-  const todJobs = jobs.filter(j=>j.date===tod && !j.postponed);
-  const todExpenses = expenses.filter(e=>e.date===tod);
+  // We want to count all jobs added today for expense tracking
+  const todJobs = jobs.filter(j => j.date === tod && !j.postponed);
+  const todExpenses = expenses.filter(e => e.date === tod);
 
-  const jobExp = todJobs.reduce((s,j)=>s+(j.price||0),0);
-  const otherExp = todExpenses.reduce((s,e)=>s+(e.amount||0),0);
+  const jobExp = todJobs.reduce((s, j) => s + (j.price || 0), 0);
+  const otherExp = todExpenses.reduce((s, e) => s + (e.amount || 0), 0);
   const totalExpense = jobExp + otherExp;
 
-  const totalWheels = todJobs.reduce((s,j)=>s+(j.quantity||0),0);
+  const totalWheels = todJobs.reduce((s, j) => s + (j.quantity || 0), 0);
 
-  if(document.getElementById('kpiPending')) document.getElementById('kpiPending').textContent = pending.length;
-  if(document.getElementById('kpiDone')) document.getElementById('kpiDone').textContent    = done.length;
+  if (document.getElementById('kpiPending')) document.getElementById('kpiPending').textContent = pending.length;
+  if (document.getElementById('kpiDone')) document.getElementById('kpiDone').textContent = done.length;
   
-  if(document.getElementById('kpiExpense')) document.getElementById('kpiExpense').textContent = totalExpense.toLocaleString('th-TH');
-  if(document.getElementById('kpiWheels')) document.getElementById('kpiWheels').textContent = totalWheels.toLocaleString('th-TH');
+  if (document.getElementById('kpiJobExpense')) document.getElementById('kpiJobExpense').textContent = jobExp.toLocaleString('th-TH');
+  if (document.getElementById('kpiOtherExpense')) document.getElementById('kpiOtherExpense').textContent = otherExp.toLocaleString('th-TH');
+  if (document.getElementById('kpiTotalExpense')) document.getElementById('kpiTotalExpense').textContent = totalExpense.toLocaleString('th-TH');
+  
+  if (document.getElementById('kpiWheels')) document.getElementById('kpiWheels').textContent = totalWheels.toLocaleString('th-TH');
 }
 
 // ── Render All ────────────────────────────────────────────────
@@ -444,6 +451,7 @@ function renderManage() {
         <div style="display:flex;align-items:center;gap:7px;flex:1;">
           <span style="width:8px;height:8px;border-radius:50%;background:${j.status==='pending'?'#3b82f6':'#22c55e'};flex-shrink:0;"></span>
           <span style="font-size:14px;font-weight:600;color:${j.status==='pending'?'#f1f5f9':'#6b7280'};">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
+          ${j.postponed ? `<span style="font-size:10px;background:rgba(251,191,36,0.1);color:#fbbf24;padding:1px 6px;border:1px solid rgba(251,191,36,0.2);border-radius:4px;margin-left:4px;font-weight:700;">เลื่อนนัด</span>` : ''}
         </div>
         <div style="display:flex;gap:5px;">
           <button class="icon-btn" onclick="openEditById('${j.id}')" style="background:rgba(99,102,241,0.1);color:#818cf8;" title="แก้ไข">
