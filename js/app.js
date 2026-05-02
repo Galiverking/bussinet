@@ -34,6 +34,32 @@ let delTargetId  = null;
 let isManualSort = false;
 const AVG_SPEED_KMH = 40; // ความเร็วเฉลี่ยกม./ชม.
 
+// ── Theme ───────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('logis_theme', isDark ? 'dark' : 'light');
+  updateThemeIcon();
+}
+
+function updateThemeIcon() {
+  const isDark = document.documentElement.classList.contains('dark');
+  const btn = document.getElementById('themeBtn');
+  if (!btn) return;
+  btn.innerHTML = isDark 
+    ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`
+    : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('logis_theme');
+  if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+  }
+  updateThemeIcon();
+}
+
+initTheme();
+
 // ── Storage ──────────────────────────────────────────────────
 const LS_LOC  = 'logis_loc';
 const COLLECTION = 'jobs';
@@ -254,23 +280,18 @@ function formatETAClock(etaTime) {
 function renderKPIs() {
   const { pending, done } = getSorted();
   const tod = todayStr();
-  // We want to count all jobs added today for expense tracking
+  // Today's jobs (excluding postponed) for price/wheel calculation
   const todJobs = jobs.filter(j => j.date === tod && !j.postponed);
   const todExpenses = expenses.filter(e => e.date === tod);
 
-  const jobExp = todJobs.reduce((s, j) => s + (j.price || 0), 0);
-  const otherExp = todExpenses.reduce((s, e) => s + (e.amount || 0), 0);
-  const totalExpense = jobExp + otherExp;
+  const totalExpense = todJobs.reduce((s, j) => s + (j.price || 0), 0) + 
+                       todExpenses.reduce((s, e) => s + (e.amount || 0), 0);
 
   const totalWheels = todJobs.reduce((s, j) => s + (j.quantity || 0), 0);
 
   if (document.getElementById('kpiPending')) document.getElementById('kpiPending').textContent = pending.length;
   if (document.getElementById('kpiDone')) document.getElementById('kpiDone').textContent = done.length;
-  
-  if (document.getElementById('kpiJobExpense')) document.getElementById('kpiJobExpense').textContent = jobExp.toLocaleString('th-TH');
-  if (document.getElementById('kpiOtherExpense')) document.getElementById('kpiOtherExpense').textContent = otherExp.toLocaleString('th-TH');
   if (document.getElementById('kpiTotalExpense')) document.getElementById('kpiTotalExpense').textContent = totalExpense.toLocaleString('th-TH');
-  
   if (document.getElementById('kpiWheels')) document.getElementById('kpiWheels').textContent = totalWheels.toLocaleString('th-TH');
 }
 

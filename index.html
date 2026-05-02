@@ -81,6 +81,9 @@
           <div class="live-dot"></div>
           <span id="clock" style="font-size:13px;color:#334155;font-weight:700;font-variant-numeric:tabular-nums;"></span>
         </div>
+        <button onclick="toggleTheme()" id="themeBtn" title="เปลี่ยนธีม" style="width:34px;height:34px;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <button onclick="requestLocation()" id="gpsBtn" title="อัปเดตตำแหน่ง GPS" style="width:34px;height:34px;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
         </button>
@@ -98,7 +101,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">งานที่ต้องส่ง</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">งานที่เหลือ</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
             <span id="kpiPending" style="font-size:30px;font-weight:800;color:#60a5fa;line-height:1;">0</span>
             <span style="font-size:12px;color:#334155;margin-bottom:3px;">งาน</span>
@@ -107,46 +110,30 @@
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">เสร็จวันนี้</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ราคาทั้งหมด</div>
+          <div style="display:flex;align-items:flex-end;gap:4px;">
+            <span id="kpiTotalExpense" style="font-size:26px;font-weight:800;color:#ef4444;line-height:1;">0</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:2px;">฿</span>
+          </div>
+          <div style="font-size:10px;color:#334155;margin-top:3px;">รวมยอดรายจ่าย</div>
+        </div>
+
+        <div class="kpi-card">
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">จำนวนล้อวง</div>
+          <div style="display:flex;align-items:flex-end;gap:6px;">
+            <span id="kpiWheels" style="font-size:26px;font-weight:800;color:#a78bfa;line-height:1;">0</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:2px;">วง</span>
+          </div>
+          <div style="font-size:10px;color:#6b7f99;margin-top:3px;">ล้อรวมวันนี้</div>
+        </div>
+
+        <div class="kpi-card">
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">จำนวนงานที่ทำไปแล้ว</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
             <span id="kpiDone" style="font-size:30px;font-weight:800;color:#4ade80;line-height:1;">0</span>
             <span style="font-size:12px;color:#334155;margin-bottom:3px;">งาน</span>
           </div>
           <div style="font-size:10px;color:#6b7f99;margin-top:3px;">ส่งมอบสำเร็จแล้ว</div>
-        </div>
-
-        <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ค่าล้อรวม (วันนี้)</div>
-          <div style="display:flex;align-items:flex-end;gap:4px;">
-            <span id="kpiJobExpense" style="font-size:22px;font-weight:800;color:#ef4444;line-height:1;">0</span>
-            <span style="font-size:12px;color:#334155;margin-bottom:2px;">฿</span>
-          </div>
-          <div style="font-size:10px;color:#334155;margin-top:3px;">รายจ่ายงานขนส่ง</div>
-        </div>
-
-        <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รายจ่ายอื่น</div>
-          <div style="display:flex;align-items:flex-end;gap:4px;">
-            <span id="kpiOtherExpense" style="font-size:22px;font-weight:800;color:#fb923c;line-height:1;">0</span>
-            <span style="font-size:12px;color:#334155;margin-bottom:2px;">฿</span>
-          </div>
-          <div style="font-size:10px;color:#334155;margin-top:3px;">ค่าน้ำมันและอื่นๆ</div>
-        </div>
-
-        <div class="kpi-card" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.2);">
-          <div style="font-size:10px;font-weight:700;color:#fca5a5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รวมรายจ่ายทั้งหมด</div>
-          <div style="display:flex;align-items:flex-end;gap:4px;">
-            <span id="kpiTotalExpense" style="font-size:22px;font-weight:800;color:#f87171;line-height:1;">0</span>
-            <span style="font-size:12px;color:#fca5a5;margin-bottom:2px;">฿</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ล้อรวมวันนี้</div>
-          <div style="display:flex;align-items:flex-end;gap:6px;">
-            <span id="kpiWheels" style="font-size:26px;font-weight:800;color:#a78bfa;line-height:1;">0</span>
-            <span id="kpiWheelsUnit" style="font-size:12px;color:#334155;margin-bottom:2px;">วง</span>
-          </div>
         </div>
 
       </div>

@@ -757,3 +757,96 @@ input:checked + .slider:before {
     align-items: center; /* Center horizontally/vertically on desktop */
   }
 }
+
+/* --- Dark Mode Support --- */
+.dark {
+  --bg-base: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-2: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+}
+
+.dark .app-layout {
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 0 60px rgba(0,0,0,0.6);
+  border-color: rgba(255,255,255,0.05);
+}
+
+.dark .bg-glow-1 { opacity: 0.12; }
+.dark .bg-glow-2 { opacity: 0.12; }
+.dark .bg-glow-3 { opacity: 0.08; }
+
+.dark .app-hdr {
+  background: rgba(15, 23, 42, 0.96);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+.dark .tab-bar {
+  background: rgba(15, 23, 42, 0.97);
+  border-top-color: rgba(255,255,255,0.08);
+}
+
+.dark .modal-sheet {
+  background: #1e293b;
+  border-color: rgba(255,255,255,0.12);
+}
+
+.dark .kpi-card {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.dark .job-pending {
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border-color: rgba(96, 165, 250, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+.dark .job-pending:hover {
+  border-color: rgba(96, 165, 250, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.dark .man-item {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(255,255,255,0.06);
+}
+
+.dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+.dark .form-input, .dark .form-date {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+.dark .form-input:focus, .dark .form-date:focus {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dark .sec-h::after { background: rgba(255, 255, 255, 0.1); }
+.dark .detail-row { border-bottom-color: rgba(255, 255, 255, 0.05); }
+
+.dark .toast {
+  background: #1e293b;
+  border-color: rgba(255,255,255,0.1);
+  color: #f1f5f9;
+}
+
+.dark .confirm-box {
+  background: #1e293b;
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* Overriding specific inline colors found in index.html */
+.dark [style*="color:#0f172a"], .dark [style*="color: #0f172a"] { color: var(--text-primary) !important; }
+.dark [style*="color:#334155"], .dark [style*="color: #334155"] { color: var(--text-secondary) !important; }
+.dark [style*="color:#94a3b8"], .dark [style*="color: #94a3b8"] { color: var(--text-muted) !important; }
+.dark [style*="color:#6b7f99"], .dark [style*="color: #6b7f99"] { color: var(--text-muted) !important; }
+.dark [style*="background:rgba(0,0,0,0.05)"] { background: rgba(255,255,255,0.08) !important; }
+.dark [style*="background: rgba(0,0,0,0.05)"] { background: rgba(255,255,255,0.08) !important; }
+.dark [style*="border:1px solid rgba(0,0,0,0.1)"] { border-color: rgba(255,255,255,0.1) !important; }
