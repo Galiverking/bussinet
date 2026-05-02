@@ -20,23 +20,30 @@ echo ""
 echo -e "\e[33m[1/3] Staging changes...\e[0m"
 git add -A
 
-# Show status
+# Commit if there are changes
 STATUS=$(git status --short)
-if [ -z "$STATUS" ]; then
-    echo -e "\e[37mNo changes to commit.\e[0m"
-    exit 0
+if [ -n "$STATUS" ]; then
+    echo -e "\e[90m$STATUS\e[0m"
+    echo ""
+    echo -e "\e[33m[2/3] Committing: $MESSAGE\e[0m"
+    git commit -m "$MESSAGE"
+else
+    echo -e "\e[37mNo new changes to commit.\e[0m"
+    echo -e "\e[33m[2/3] Skipping commit (working tree clean).\e[0m"
 fi
-echo -e "\e[90m$STATUS\e[0m"
 
-# Commit
-echo ""
-echo -e "\e[33m[2/3] Committing: $MESSAGE\e[0m"
-git commit -m "$MESSAGE"
+# Check for unpushed commits
+UNPUSHED=$(git rev-list --count origin/main..main 2>/dev/null)
 
-# Push
-echo ""
-echo -e "\e[33m[3/3] Pushing to origin/main...\e[0m"
-git push origin main
+if [ "$UNPUSHED" -gt 0 ] 2>/dev/null || [ -z "$UNPUSHED" ]; then
+    # Push
+    echo ""
+    echo -e "\e[33m[3/3] Pushing $UNPUSHED commit(s) to origin/main...\e[0m"
+    git push origin main
+else
+    echo ""
+    echo -e "\e[32mEverything is already up to date on GitHub.\e[0m"
+fi
 
 echo ""
 echo -e "\e[32m=== Done! ===\e[0m"
