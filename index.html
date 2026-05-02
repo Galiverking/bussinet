@@ -6,7 +6,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#1a2332">
+  <meta name="theme-color" content="#f1f5f9">
   <title>Logis Master — Smart Logistic Planner Pro</title>
   <meta name="description" content="เครื่องมือจัดการงานขนส่งและบริการนอกสถานที่ส่วนตัว">
 
@@ -43,10 +43,10 @@
 <!-- ===== CONFIRM DIALOG ===== -->
 <div id="confirmDlg" class="confirm-wrap hidden">
   <div class="confirm-box fade-up">
-    <h3 id="cfTitle" style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:8px;"></h3>
-    <p id="cfMsg" style="font-size:13px;color:#a8b8cc;margin-bottom:20px;line-height:1.6;"></p>
+    <h3 id="cfTitle" style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:8px;"></h3>
+    <p id="cfMsg" style="font-size:13px;color:#334155;margin-bottom:20px;line-height:1.6;"></p>
     <div style="display:flex;gap:10px;">
-      <button id="cfCancel" style="flex:1;padding:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);border-radius:12px;color:#a8b8cc;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ยกเลิก</button>
+      <button id="cfCancel" style="flex:1;padding:12px;background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.1);border-radius:12px;color:#334155;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ยกเลิก</button>
       <button id="cfOk" style="flex:1;padding:12px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ลบเลย</button>
     </div>
   </div>
@@ -61,12 +61,12 @@
       <!-- Logo + Name -->
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:34px;height:34px;background:linear-gradient(135deg,#2563eb,#7c3aed);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
         </div>
         <div>
           <div class="grad" style="font-size:15px;font-weight:800;line-height:1.1;">Logis Master</div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <div style="font-size:10px;color:#7a8ba0;">Smart Logistic Planner Pro</div>
+            <div style="font-size:10px;color:#334155;">Smart Logistic Planner Pro</div>
             <div id="syncStatus">
                <span id="syncDot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></span>
                <span id="syncText">OFFLINE</span>
@@ -79,9 +79,9 @@
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="display:flex;align-items:center;gap:5px;">
           <div class="live-dot"></div>
-          <span id="clock" style="font-size:13px;color:#8899b0;font-weight:700;font-variant-numeric:tabular-nums;"></span>
+          <span id="clock" style="font-size:13px;color:#334155;font-weight:700;font-variant-numeric:tabular-nums;"></span>
         </div>
-        <button onclick="requestLocation()" id="gpsBtn" title="อัปเดตตำแหน่ง GPS" style="width:34px;height:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;">
+        <button onclick="requestLocation()" id="gpsBtn" title="อัปเดตตำแหน่ง GPS" style="width:34px;height:34px;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
         </button>
       </div>
@@ -98,39 +98,39 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#8899b0;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">งานที่ต้องส่ง</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">งานที่ต้องส่ง</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
             <span id="kpiPending" style="font-size:30px;font-weight:800;color:#60a5fa;line-height:1;">0</span>
-            <span style="font-size:12px;color:#7a8ba0;margin-bottom:3px;">งาน</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:3px;">งาน</span>
           </div>
           <div style="font-size:10px;color:#6b7f99;margin-top:3px;">ค้างอยู่ในคิว</div>
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#8899b0;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">เสร็จวันนี้</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">เสร็จวันนี้</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
             <span id="kpiDone" style="font-size:30px;font-weight:800;color:#4ade80;line-height:1;">0</span>
-            <span style="font-size:12px;color:#7a8ba0;margin-bottom:3px;">งาน</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:3px;">งาน</span>
           </div>
           <div style="font-size:10px;color:#6b7f99;margin-top:3px;">ส่งมอบสำเร็จแล้ว</div>
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#a8b8cc;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ค่าล้อรวม (วันนี้)</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ค่าล้อรวม (วันนี้)</div>
           <div style="display:flex;align-items:flex-end;gap:4px;">
             <span id="kpiJobExpense" style="font-size:22px;font-weight:800;color:#ef4444;line-height:1;">0</span>
-            <span style="font-size:12px;color:#e2e8f0;margin-bottom:2px;">฿</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:2px;">฿</span>
           </div>
-          <div style="font-size:10px;color:#a8b8cc;margin-top:3px;">รายจ่ายงานขนส่ง</div>
+          <div style="font-size:10px;color:#334155;margin-top:3px;">รายจ่ายงานขนส่ง</div>
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#a8b8cc;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รายจ่ายอื่น</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">รายจ่ายอื่น</div>
           <div style="display:flex;align-items:flex-end;gap:4px;">
             <span id="kpiOtherExpense" style="font-size:22px;font-weight:800;color:#fb923c;line-height:1;">0</span>
-            <span style="font-size:12px;color:#e2e8f0;margin-bottom:2px;">฿</span>
+            <span style="font-size:12px;color:#334155;margin-bottom:2px;">฿</span>
           </div>
-          <div style="font-size:10px;color:#a8b8cc;margin-top:3px;">ค่าน้ำมันและอื่นๆ</div>
+          <div style="font-size:10px;color:#334155;margin-top:3px;">ค่าน้ำมันและอื่นๆ</div>
         </div>
 
         <div class="kpi-card" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.2);">
@@ -142,10 +142,10 @@
         </div>
 
         <div class="kpi-card">
-          <div style="font-size:10px;font-weight:700;color:#a8b8cc;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ล้อรวมวันนี้</div>
+          <div style="font-size:10px;font-weight:700;color:#334155;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">ล้อรวมวันนี้</div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
             <span id="kpiWheels" style="font-size:26px;font-weight:800;color:#a78bfa;line-height:1;">0</span>
-            <span id="kpiWheelsUnit" style="font-size:12px;color:#e2e8f0;margin-bottom:2px;">วง</span>
+            <span id="kpiWheelsUnit" style="font-size:12px;color:#334155;margin-bottom:2px;">วง</span>
           </div>
         </div>
 
@@ -157,8 +157,8 @@
           <input type="checkbox" id="sortToggle" onchange="toggleSortMode(this.checked)">
           <span class="slider"></span>
         </label>
-        <span style="font-size:13px;font-weight:600;color:#a8b8cc;flex:1;">จัดลำดับคิวด้วยตัวเอง (Manual)</span>
-        <div id="sortLabel" style="font-size:11px;color:#7a8ba0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">AUTO</div>
+        <span style="font-size:13px;font-weight:600;color:#334155;flex:1;">จัดลำดับคิวด้วยตัวเอง (Manual)</span>
+        <div id="sortLabel" style="font-size:11px;color:#334155;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">AUTO</div>
       </div>
 
       <!-- Action buttons -->
@@ -194,7 +194,7 @@
     <div id="tabManage" class="px-4 pt-4" style="display:none;">
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;">รายการทั้งหมด</h2>
+        <h2 style="font-size:16px;font-weight:700;color:#0f172a;">รายการทั้งหมด</h2>
         <div style="display:flex;gap:10px;align-items:center;">
           <span id="manCount" style="font-size:12px;color:#94a3b8;"></span>
           <button onclick="exportToCSV()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(16,185,129,0.15);color:#34d399;font-weight:700;border:1px solid rgba(16,185,129,0.3);border-radius:8px;cursor:pointer;">📥 Export CSV</button>
@@ -217,7 +217,7 @@
     <!-- ======== EXPENSE TAB ======== -->
     <div id="tabExpense" class="px-4 pt-4" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;">บัญชีรายจ่าย</h2>
+        <h2 style="font-size:16px;font-weight:700;color:#0f172a;">บัญชีรายจ่าย</h2>
         <button class="btn-primary" onclick="openExpenseModal()" style="padding:6px 12px;font-size:12px;border-radius:8px;">+ เพิ่มรายจ่าย</button>
       </div>
       <div id="expenseList"></div>
@@ -250,13 +250,13 @@
   <div class="modal-sheet">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:17px;font-weight:700;color:#f1f5f9;">📋 วางข้อความงาน</h2>
-      <button onclick="closeParserModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#64748b;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 style="font-size:17px;font-weight:700;color:#0f172a;">📋 วางข้อความงาน</h2>
+      <button onclick="closeParserModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
 
     <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.18);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#93c5fd;line-height:1.7;">
       💡 วางข้อความจากแชทได้เลย รองรับหลายงาน<br>
-      คั่นงานด้วย <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">---</code> หรือ <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">☀️</code> หรือบรรทัดว่าง 2 บรรทัด
+      คั่นงานด้วย <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:4px;">---</code> หรือ <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:4px;">☀️</code> หรือบรรทัดว่าง 2 บรรทัด
     </div>
 
     <textarea id="parserInput" class="form-input" placeholder="พิมพ์หรือวางข้อความที่นี่..."></textarea>
@@ -284,8 +284,8 @@
   <div class="modal-sheet">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 id="editTitle" style="font-size:17px;font-weight:700;color:#f1f5f9;">➕ เพิ่มงานใหม่</h2>
-      <button onclick="closeEditModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#64748b;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 id="editTitle" style="font-size:17px;font-weight:700;color:#0f172a;">➕ เพิ่มงานใหม่</h2>
+      <button onclick="closeEditModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
 
     <input type="hidden" id="editId">
@@ -293,23 +293,23 @@
     <div style="display:flex;flex-direction:column;gap:13px;">
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">ชื่อลูกค้า / เฟส *</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">ชื่อลูกค้า / เฟส *</label>
         <input type="text" id="fName" class="form-input" placeholder="เช่น ร้านวรรณา">
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">เบอร์โทร</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">เบอร์โทร</label>
         <input type="tel" id="fPhone" class="form-input" placeholder="0812345678">
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">พิกัด / ที่อยู่</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">พิกัด / ที่อยู่</label>
         <input type="text" id="fLocation" class="form-input" placeholder="พิกัด GPS, ลิ้งค์ Maps, หรือชื่อสถานที่" oninput="updateLocTypeHint()">
         <div id="locTypeHint" style="margin-top:5px;font-size:11px;height:16px;"></div>
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">ราคา (บาท)</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">ราคา (บาท)</label>
         <input type="number" id="fPrice" class="form-input" placeholder="1500">
       </div>
 
@@ -329,12 +329,12 @@
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">เงื่อนไขเวลา</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">เงื่อนไขเวลา</label>
         <input type="text" id="fTime" class="form-input" placeholder="เช่น ไม่เกิน 17.00 น.">
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:5px;">หมายเหตุ</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">หมายเหตุ</label>
         <textarea id="fNote" class="form-input" style="min-height:76px;" placeholder="รายละเอียดเพิ่มเติม"></textarea>
       </div>
 
@@ -355,8 +355,8 @@
   <div class="modal-sheet">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:17px;font-weight:700;color:#f1f5f9;">💸 เพิ่มรายจ่าย (ทั่วไป)</h2>
-      <button onclick="closeExpenseModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#64748b;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 style="font-size:17px;font-weight:700;color:#0f172a;">💸 เพิ่มรายจ่าย (ทั่วไป)</h2>
+      <button onclick="closeExpenseModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:13px;">
@@ -392,8 +392,8 @@
 <div id="detailModal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 id="detailTitle" style="font-size:17px;font-weight:700;color:#f1f5f9;">📋 รายละเอียดงาน</h2>
-      <button onclick="closeDetailModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#8899b0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 id="detailTitle" style="font-size:17px;font-weight:700;color:#0f172a;">📋 รายละเอียดงาน</h2>
+      <button onclick="closeDetailModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
     <div id="detailContent"></div>
     <div id="detailActions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:18px;"></div>
@@ -406,19 +406,19 @@
 <div id="postponeModal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:17px;font-weight:700;color:#f1f5f9;">🔄 เลื่อนนัดลูกค้า</h2>
-      <button onclick="closePostponeModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#8899b0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 style="font-size:17px;font-weight:700;color:#0f172a;">🔄 เลื่อนนัดลูกค้า</h2>
+      <button onclick="closePostponeModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
     <input type="hidden" id="postponeJobId">
-    <p id="postponeJobName" style="font-size:14px;color:#a8b8cc;margin-bottom:16px;"></p>
+    <p id="postponeJobName" style="font-size:14px;color:#334155;margin-bottom:16px;"></p>
     <div style="display:flex;flex-direction:column;gap:13px;">
       <div>
-        <label style="font-size:12px;font-weight:600;color:#a8b8cc;display:block;margin-bottom:5px;">เลือกวันนัดใหม่</label>
+        <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-bottom:5px;">เลือกวันนัดใหม่</label>
         <input type="date" id="postponeDate" class="form-date">
       </div>
       <div style="display:flex;gap:10px;">
         <button onclick="doPostpone(false)" style="flex:1;padding:13px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">📅 เลื่อนตามวันที่เลือก</button>
-        <button onclick="doPostpone(true)" style="flex:1;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#a8b8cc;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">❓ ไม่มีกำหนด</button>
+        <button onclick="doPostpone(true)" style="flex:1;padding:13px;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.1);color:#334155;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">❓ ไม่มีกำหนด</button>
       </div>
     </div>
   </div>
@@ -430,12 +430,12 @@
 <div id="queueParserModal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2 style="font-size:17px;font-weight:700;color:#f1f5f9;">🤖 จัดคิวอัตโนมัติ</h2>
-      <button onclick="closeQueueParserModal()" style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:none;border-radius:8px;color:#8899b0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+      <h2 style="font-size:17px;font-weight:700;color:#0f172a;">🤖 จัดคิวอัตโนมัติ</h2>
+      <button onclick="closeQueueParserModal()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border:none;border-radius:8px;color:#334155;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
     <div style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.18);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#fcd34d;line-height:1.7;">
       💡 วางรายการสถานที่ได้เลย ระบบจะจัดคิวอัตโนมัติ<br>
-      รูปแบบ: <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">นัดรับวัน...</code> ตามด้วยรายการสถานที่ทีละบรรทัด
+      รูปแบบ: <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:4px;">นัดรับวัน...</code> ตามด้วยรายการสถานที่ทีละบรรทัด
     </div>
     <textarea id="queueInput" class="form-input" placeholder="เช่น:
 นัดรับวันจันทร์ที่ 13 เมษา 69

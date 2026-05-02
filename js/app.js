@@ -293,7 +293,7 @@ function renderPending() {
     el.innerHTML = `
       <div class="empty">
         <div style="font-size:44px;margin-bottom:10px;">🎉</div>
-        <div style="font-size:15px;font-weight:600;color:#a8b8cc;margin-bottom:4px;">ยังไม่มีงาน</div>
+        <div style="font-size:15px;font-weight:600;color:#334155;margin-bottom:4px;">ยังไม่มีงาน</div>
         <div style="font-size:12px;">เพิ่มงานใหม่หรือวางข้อความจากแชทด้านบน</div>
       </div>`;
     return;
@@ -330,7 +330,7 @@ function cardPending(j, pri, etaInfo) {
       <!-- Row 1: priority + name + dist + ETA -->
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
         <span class="badge${pri===1?' p1':''}">#${pri}</span>
-        <span style="font-size:16px;font-weight:700;color:#f1f5f9;flex:1;line-height:1.3;">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
+        <span style="font-size:16px;font-weight:700;color:#0f172a;flex:1;line-height:1.3;">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
         <div style="display:flex;align-items:flex-end;gap:8px;">
            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
              ${distBadge}
@@ -342,21 +342,21 @@ function cardPending(j, pri, etaInfo) {
 
       <!-- Details -->
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
-        ${getPhones(j.phone).map(p => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#a8b8cc;">
+        ${getPhones(j.phone).map(p => `<div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#334155;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>
           ${esc(p)}</div>`).join('')}
 
-        ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8899b0;">
+        ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;">
           <span>${locIcon}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.locationRaw)}</span>
-          <span style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;color:#8899b0;flex-shrink:0;">${locLabel}</span>
+          <span style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;color:#334155;flex-shrink:0;">${locLabel}</span>
         </div>` : ''}
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           ${j.price ? `<span style="font-size:13px;color:#f87171;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
-          ${j.wheelStr ? `<span style="font-size:12px;color:#8899b0;">${esc(j.wheelStr)}</span>` : ''}
+          ${j.wheelStr ? `<span style="font-size:12px;color:#334155;">${esc(j.wheelStr)}</span>` : ''}
           ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>` : ''}
-          ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#a8b8cc;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
+          ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#334155;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
           ${timeBadge}
         </div>
       </div>
@@ -394,8 +394,8 @@ function renderPostponed() {
             <span style="font-size:10px;">🔄</span>
           </div>
           <div style="flex:1;">
-            <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
-            <div style="font-size:11px;color:#8899b0;">📅 ${dateLabel}</div>
+            <div style="font-size:13px;font-weight:600;color:#334155;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:11px;color:#334155;">📅 ${dateLabel}</div>
           </div>
           <button onclick="event.stopPropagation();undoPostpone('${j.id}')" style="font-size:11px;color:#fbbf24;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">คืนคิว</button>
         </div>
@@ -419,7 +419,7 @@ function renderDone() {
           <div style="font-size:13px;font-weight:600;color:#6b7f99;text-decoration:line-through;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
           ${j.price?`<div style="font-size:11px;color:#5a6d84;">${j.price.toLocaleString('th-TH')} ฿</div>`:''}
         </div>
-        <button onclick="undoJob('${j.id}')" style="font-size:11px;color:#8899b0;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ย้อน</button>
+        <button onclick="undoJob('${j.id}')" style="font-size:11px;color:#334155;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ย้อน</button>
       </div>
     </div>`).join('');
 }
@@ -463,17 +463,17 @@ function renderManage() {
         </div>
       </div>
 
-      <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#64748b;margin-bottom:5px;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#334155;margin-bottom:5px;">
         ${j.phone?`<span>📞 ${j.phone}</span>`:''}
         ${j.price?`<span style="color:#ef4444;">จ่าย ฿ ${j.price.toLocaleString('th-TH')}</span>`:''}
         ${j.wheelStr?`<span>🔵 ${esc(j.wheelStr)}</span>`:''}
         ${j.quantity?`<span style="color:#c4b5fd;">( ${j.quantity} วง )</span>`:''}
         ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
         ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
-        ${j.tags?`<span style="color:#94a3b8;background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:4px;">🏷️ ${esc(j.tags)}</span>`:''}
+        ${j.tags?`<span style="color:#94a3b8;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:4px;">🏷️ ${esc(j.tags)}</span>`:''}
       </div>
 
-      ${j.locationRaw?`<div style="font-size:11px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      ${j.locationRaw?`<div style="font-size:11px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
         ${LOC_ICON[j.locationType]||'📍'} ${esc(j.locationRaw)}</div>`:''}
 
       <div style="margin-top:6px;font-size:10px;color:#374151;">
@@ -506,18 +506,18 @@ function renderExpense() {
   }
 
   el.innerHTML = list.map(e=>`
-    <div class="man-item mb-2" style="background:${e.isJob?'rgba(15,23,42,0.4)':'rgba(239,68,68,0.06)'};border-color:${e.isJob?'rgba(255,255,255,0.05)':'rgba(239,68,68,0.15)'};">
+    <div class="man-item mb-2" style="background:${e.isJob?'rgba(255,255,255,0.9)':'rgba(254,226,226,0.5)'};border-color:${e.isJob?'rgba(0,0,0,0.05)':'rgba(239,68,68,0.15)'};">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:4px;">
             ${e.isJob?'🚚 ':'💸 '}${esc(e.title)}
           </div>
-          ${e.tags ? `<span style="font-size:10px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;color:#94a3b8;">${esc(e.tags)}</span>` : ''}
-          <div style="font-size:10px;color:#64748b;margin-top:6px;">${new Date(e.time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
+          ${e.tags ? `<span style="font-size:10px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;color:#94a3b8;">${esc(e.tags)}</span>` : ''}
+          <div style="font-size:10px;color:#334155;margin-top:6px;">${new Date(e.time).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:15px;font-weight:700;color:#ef4444;">- ${e.amount.toLocaleString('th-TH')} ฿</div>
-          ${!e.isJob ? `<button onclick="deleteExpense('${e.id}')" style="margin-top:5px;font-size:10px;color:#94a3b8;background:transparent;border:1px solid #475569;border-radius:4px;padding:2px 6px;">ลบ</button>` : `<span style="font-size:10px;color:#64748b;">(อัตโนมัติ)</span>`}
+          ${!e.isJob ? `<button onclick="deleteExpense('${e.id}')" style="margin-top:5px;font-size:10px;color:#94a3b8;background:transparent;border:1px solid #475569;border-radius:4px;padding:2px 6px;">ลบ</button>` : `<span style="font-size:10px;color:#334155;">(อัตโนมัติ)</span>`}
         </div>
       </div>
     </div>`).join('');
@@ -737,12 +737,13 @@ function showPreview(list) {
   btn.textContent=`💾 บันทึก ${list.length} งาน`;
   el.innerHTML=list.map((j,i)=>`
     <div class="parse-card ${j.customerName?'ok':'warn'}">
-      <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:7px;">งานที่ ${i+1}: ${esc(j.customerName||'⚠️ ไม่พบชื่อ')}</div>
+      <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:7px;">งานที่ ${i+1}: ${esc(j.customerName||'⚠️ ไม่พบชื่อ')}</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;">
         ${j.phone?`<span style="color:#86efac;">📞 ${j.phone}</span>`:`<span style="color:#f87171;">📞 ไม่พบ</span>`}
         ${j.locationRaw
           ?`<span style="color:${LOC_COLOR[j.locationType]}">${LOC_ICON[j.locationType]} ${LOC_LABEL[j.locationType]}: ${esc(j.locationRaw.slice(0,35))}${j.locationRaw.length>35?'…':''}</span>`
           :`<span style="color:#f87171;">📍 ไม่พบพิกัด</span>`}
+        ${j.locationRaw && j.locationRaw.includes('(โลเคชั่นทางแชท)') ? `<div style="width:100%;margin-top:5px;"><input type="text" class="form-input loc-override" placeholder="วางลิงก์พิกัดที่นี่..." style="font-size:11px;padding:6px;width:100%;" onchange="updateParsedLoc(${i}, this.value)"></div>` : ''}
         ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:`<span style="color:#f87171;">฿ ไม่พบ</span>`}
         ${j.wheelSize?`<span style="color:#c4b5fd;">ล้อ ${j.wheelSize}"</span>`:''}
         ${j.quantity?`<span style="color:#a5b4fc;">× ${j.quantity} วง</span>`:''}
@@ -751,6 +752,17 @@ function showPreview(list) {
       </div>
     </div>`).join('');
 }
+
+window.updateParsedLoc = function(idx, val) {
+  if (parsedBuf[idx]) {
+    parsedBuf[idx].locationRaw = val;
+    parsedBuf[idx].locationType = classifyLoc(val);
+    if (parsedBuf[idx].locationType === 'coords' && userLoc) {
+      const c = parseCoords(val);
+      if (c) parsedBuf[idx].distanceKm = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
+    }
+  }
+};
 
 function saveFromParser() {
   if (!parsedBuf.length) return;
@@ -967,8 +979,13 @@ function exportToCSV() {
   let csvContent = "\uFEFF"; // BOM for UTF-8
   csvContent += "Type,Date,Time,Status,Customer_Name,Phone,Location,Price_Amount,Wheel_Size,Quantity,Note,Tags\n";
 
+  let totalMoney = 0;
+  let totalWheels = 0;
+
   // Export Jobs
   jobs.forEach(j => {
+    if(j.price) totalMoney += j.price;
+    if(j.quantity) totalWheels += j.quantity;
     let dt = new Date(j.createdAt);
     let row = [
       "Job",
@@ -1006,6 +1023,8 @@ function exportToCSV() {
     ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(",");
     csvContent += row + "\n";
   });
+
+  csvContent += `\n"Summary","","","","","","รวมจำนวนเงินบาท",${totalMoney},"จำนวนล้อวง",${totalWheels},"",""\n`;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -1045,7 +1064,7 @@ function openDetailModal(id) {
     const dl = j.postponeDate ? new Date(j.postponeDate).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit'}) : 'ไม่มีกำหนด';
     rows += `<div class="detail-row"><div class="detail-label">เลื่อนนัด</div><div class="detail-value"><span class="postpone-tag">🔄 ${dl}</span></div></div>`;
   }
-  if(j.rawNote) rows += `<div class="detail-row"><div class="detail-label">หมายเหตุ</div><div class="detail-value" style="font-size:12px;color:#8899b0;white-space:pre-wrap;">${esc(j.rawNote)}</div></div>`;
+  if(j.rawNote) rows += `<div class="detail-row"><div class="detail-label">หมายเหตุ</div><div class="detail-value" style="font-size:12px;color:#334155;white-space:pre-wrap;">${esc(j.rawNote)}</div></div>`;
   rows += `<div class="detail-row"><div class="detail-label">สร้างเมื่อ</div><div class="detail-value" style="font-size:12px;color:#6b7f99;">${new Date(j.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`;
   
   document.getElementById('detailContent').innerHTML = rows;
@@ -1196,7 +1215,7 @@ function runQueueParser() {
     <div class="parse-card ok">
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="badge">#${i+1}</span>
-        <span style="font-size:13px;font-weight:600;color:#f1f5f9;">${esc(j.customerName)}</span>
+        <span style="font-size:13px;font-weight:600;color:#0f172a;">${esc(j.customerName)}</span>
         <span style="font-size:11px;color:#94a3b8;flex:1;text-align:right;">${esc((j.locationRaw||'').slice(0, 20))}</span>
       </div>
     </div>
