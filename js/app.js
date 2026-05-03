@@ -148,12 +148,16 @@ const LOC_COLOR = { coords:'#93c5fd', url:'#86efac', place:'#fcd34d', placeholde
 
 function buildMapsUrl(job) {
   if (!job.locationRaw || job.locationType === 'placeholder') return null;
+  let url;
   switch(job.locationType) {
-    case 'url':    return job.locationRaw;
-    case 'coords': return `https://maps.google.com/?q=${job.locationRaw.replace(/\s/g,'')}`;
-    case 'place':  return `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`;
-    default:       return `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`;
+    case 'url':    url = job.locationRaw; break;
+    case 'coords': url = `https://maps.google.com/?q=${job.locationRaw.replace(/\s/g,'')}`; break;
+    case 'place':  url = `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`; break;
+    default:       url = `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`; break;
   }
+  // Security: only allow https:// URLs
+  if (!url || !/^https:\/\//i.test(url)) return null;
+  return url;
 }
 
 // ── Distance ──────────────────────────────────────────────────
@@ -375,7 +379,9 @@ function cardPending(j, pri, etaInfo) {
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           ${j.price ? `<span style="font-size:13px;color:#f87171;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
-          ${j.wheelStr ? `<span style="font-size:12px;color:#334155;">${esc(j.wheelStr)}</span>` : ''}
+          ${j.wheelSizes && j.wheelSizes.length > 0
+            ? j.wheelSizes.map(ws=>`<span style="font-size:11px;color:#c4b5fd;background:rgba(196,181,253,0.1);padding:2px 7px;border-radius:5px;border:1px solid rgba(196,181,253,0.2);">🔵 ${ws.size}" ×${ws.qty}</span>`).join('')
+            : (j.wheelStr ? `<span style="font-size:12px;color:#334155;">${esc(j.wheelStr)}</span>` : '')}
           ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>` : ''}
           ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#334155;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
           ${timeBadge}
@@ -694,7 +700,7 @@ function parseBlock(block) {
     }
   }
 
-  // Wheel string + price: "ล้อ :17/4วงราคา2,000 บาท"
+  // Wheel string + price: "ล้อ :17/4วง, 18/2วง ราคา2,000 บาท"
   const wheelMatch = block.match(/ล้อ\s*[:：|]\s*(.+)/i);
   if (wheelMatch) {
     const wheelLine = wheelMatch[1].trim();
@@ -709,10 +715,22 @@ function parseBlock(block) {
       if (priceM) job.price = parseInt(priceM[1].replace(/,/g, ''));
     }
     
-    // Quantity from wheel
-    const qtyMatches = wheelLine.match(/[\/|](\d+)\s*วง/gi);
-    if (qtyMatches) {
-      job.quantity = qtyMatches.reduce((sum, q) => sum + parseInt(q.match(/(\d+)/)[1]), 0);
+    // Multi-size wheel: parse each size group e.g. "17/4วง, 18/2วง" or "17x4วง|18x2วง"
+    // Format: <size><sep><qty>วง  where sep = / x × | ,
+    const sizeGroups = wheelLine.matchAll(/(\d{2,3})\s*[x×\/\|\s]\s*(\d+)\s*วง/gi);
+    job.wheelSizes = [];
+    for (const sg of sizeGroups) {
+      job.wheelSizes.push({ size: parseInt(sg[1]), qty: parseInt(sg[2]) });
+    }
+    
+    // Fallback quantity from wheel if wheelSizes not found
+    if (job.wheelSizes.length > 0) {
+      job.quantity = job.wheelSizes.reduce((sum, ws) => sum + ws.qty, 0);
+    } else {
+      const qtyMatches = wheelLine.match(/[\/|](\d+)\s*วง/gi);
+      if (qtyMatches) {
+        job.quantity = qtyMatches.reduce((sum, q) => sum + parseInt(q.match(/(\d+)/)[1]), 0);
+      }
     }
   }
 
@@ -756,22 +774,26 @@ function showPreview(list) {
   }
   btn.style.display='block';
   btn.textContent=`💾 บันทึก ${list.length} งาน`;
-  el.innerHTML=list.map((j,i)=>`
+  el.innerHTML=list.map((j,i)=>{
+    // Render wheelSizes badges (multi-size support)
+    const wheelBadges = (j.wheelSizes && j.wheelSizes.length > 0)
+      ? j.wheelSizes.map(ws=>`<span style="color:#c4b5fd;background:rgba(196,181,253,0.12);padding:1px 6px;border-radius:5px;border:1px solid rgba(196,181,253,0.25);">🔵 ${ws.size}" × ${ws.qty}วง</span>`).join(' ')
+      : (j.quantity ? `<span style="color:#a5b4fc;">× ${j.quantity} วง</span>` : '');
+    return `
     <div class="parse-card ${j.customerName?'ok':'warn'}">
       <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:7px;">งานที่ ${i+1}: ${esc(j.customerName||'⚠️ ไม่พบชื่อ')}</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;">
-        ${j.phone?`<span style="color:#86efac;">📞 ${j.phone}</span>`:`<span style="color:#f87171;">📞 ไม่พบ</span>`}
+        ${j.phone?`<span style="color:#86efac;">📞 ${esc(j.phone)}</span>`:`<span style="color:#f87171;">📞 ไม่พบ</span>`}
         ${j.locationRaw
           ?`<span style="color:${LOC_COLOR[j.locationType]}">${LOC_ICON[j.locationType]} ${LOC_LABEL[j.locationType]}: ${esc(j.locationRaw.slice(0,35))}${j.locationRaw.length>35?'…':''}</span>`
           :`<span style="color:#f87171;">📍 ไม่พบพิกัด</span>`}
         ${j.locationRaw && j.locationRaw.includes('(โลเคชั่นทางแชท)') ? `<div style="width:100%;margin-top:5px;"><input type="text" class="form-input loc-override" placeholder="วางลิงก์พิกัดที่นี่..." style="font-size:11px;padding:6px;width:100%;" onchange="updateParsedLoc(${i}, this.value)"></div>` : ''}
         ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:`<span style="color:#f87171;">฿ ไม่พบ</span>`}
-        ${j.wheelSize?`<span style="color:#c4b5fd;">ล้อ ${j.wheelSize}"</span>`:''}
-        ${j.quantity?`<span style="color:#a5b4fc;">× ${j.quantity} วง</span>`:''}
+        ${wheelBadges}
         ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
         ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
       </div>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 
 window.updateParsedLoc = function(idx, val) {
@@ -800,6 +822,9 @@ function saveFromParser() {
   batch.commit().then(() => {
     closeParserModal();
     toast(`✅ บันทึก ${added} งานแล้ว (Cloud Sync)`, 'ok');
+  }).catch(err => {
+    console.error('saveFromParser error:', err);
+    toast('❌ บันทึกผิดพลาด กรุณาลองใหม่', 'err');
   });
 }
 
@@ -926,8 +951,14 @@ function saveExpense() {
   });
 }
 function deleteExpense(id) {
-  if(!confirm('ลบรายจ่ายนี้?')) return;
-  db.collection(EXP_COLLECTION).doc(id).delete().then(()=>toast('🗑️ ลบแล้ว','ok'));
+  // Use the shared confirm modal for consistent UX (no blocking confirm())
+  delTargetId = '__exp__' + id;
+  document.getElementById('cfTitle').textContent = 'ลบรายจ่าย?';
+  document.getElementById('cfMsg').textContent = 'ลบรายจ่ายนี้ออกจากระบบ ไม่สามารถกู้คืนได้';
+  document.getElementById('confirmDlg').classList.remove('hidden');
+}
+function _doDeleteExpense(id) {
+  db.collection(EXP_COLLECTION).doc(id).delete().then(()=>toast('🗑️ ลบแล้ว','ok')).catch(()=>toast('❌ ลบไม่สำเร็จ','err'));
 }
 
 // ── Tab navigation ────────────────────────────────────────────
@@ -977,7 +1008,17 @@ function updateClock() {
 
 // ── Confirm dialog wiring ─────────────────────────────────────
 document.getElementById('cfCancel').onclick=()=>{ document.getElementById('confirmDlg').classList.add('hidden'); delTargetId=null; };
-document.getElementById('cfOk').onclick=()=>{ if(delTargetId){deleteJob(delTargetId);delTargetId=null;} document.getElementById('confirmDlg').classList.add('hidden'); };
+document.getElementById('cfOk').onclick=()=>{
+  if(delTargetId){
+    if(delTargetId.startsWith('__exp__')){
+      _doDeleteExpense(delTargetId.slice(7));
+    } else {
+      deleteJob(delTargetId);
+    }
+    delTargetId=null;
+  }
+  document.getElementById('confirmDlg').classList.add('hidden');
+};
 
 // ── Auto Cleanup & Export ─────────────────────────────────────
 function runAutoCleanup() {
@@ -998,7 +1039,8 @@ function runAutoCleanup() {
 
 function exportToCSV() {
   let csvContent = "\uFEFF"; // BOM for UTF-8
-  csvContent += "Type,Date,Time,Status,Customer_Name,Phone,Location,Price_Amount,Wheel_Size,Quantity,Note,Tags\n";
+  // Added Completed_At column to track when each job was finished
+  csvContent += "Type,Date,Time,Status,Completed_At,Customer_Name,Phone,Location,Price_Amount,Wheel_Sizes,Quantity,Note,Tags\n";
 
   let totalMoney = 0;
   let totalWheels = 0;
@@ -1008,18 +1050,31 @@ function exportToCSV() {
     if(j.price) totalMoney += j.price;
     if(j.quantity) totalWheels += j.quantity;
     let dt = new Date(j.createdAt);
+    // Format completedAt if available
+    let completedStr = '';
+    if (j.completedAt) {
+      try {
+        const cd = new Date(j.completedAt);
+        completedStr = cd.toLocaleDateString('th-TH') + ' ' + cd.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+      } catch(_) { completedStr = j.completedAt; }
+    }
+    // Format wheelSizes as readable string e.g. "17"×4, 18"×2"
+    const wheelSizesStr = (j.wheelSizes && j.wheelSizes.length > 0)
+      ? j.wheelSizes.map(ws => `${ws.size}"×${ws.qty}วง`).join(', ')
+      : (j.wheelStr || '');
     let row = [
       "Job",
       dt.toLocaleDateString('th-TH'),
       dt.toLocaleTimeString('th-TH'),
       j.status,
+      completedStr,
       j.customerName,
       j.phone,
       j.locationRaw,
       j.price,
-      j.wheelStr,
+      wheelSizesStr,
       j.quantity,
-      (j.timeNote || '') + " " + (j.rawNote || '').replace(/\n/g, " "),
+      (j.timeNote || '') + ' ' + (j.rawNote || '').replace(/\n/g, ' '),
       j.tags
     ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(",");
     csvContent += row + "\n";
@@ -1033,6 +1088,7 @@ function exportToCSV() {
       dt.toLocaleDateString('th-TH'),
       dt.toLocaleTimeString('th-TH'),
       "done",
+      "",
       e.name,
       "",
       "",
@@ -1045,7 +1101,7 @@ function exportToCSV() {
     csvContent += row + "\n";
   });
 
-  csvContent += `\n"Summary","","","","","","รวมจำนวนเงินบาท",${totalMoney},"จำนวนล้อวง",${totalWheels},"",""\n`;
+  csvContent += `\n"Summary","","","","","","","รวมจำนวนเงินบาท",${totalMoney},"จำนวนล้อวง",${totalWheels},"","",""\n`;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -1055,6 +1111,7 @@ function exportToCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url); // Clean up object URL
   toast('📥 ส่งออกไฟล์ CSV สำเร็จ', 'ok');
 }
 
@@ -1266,8 +1323,7 @@ function saveFromQueueParser() {
   });
 }
 
-// ── Live timer (distance refresh every 60s) ───────────────────
-setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
+// ── Live timer (distance refresh every 60s) — managed inside init() ──────────
 
 // ── Init ───────────────────────────────────────────────────────
 (function init(){
