@@ -198,8 +198,23 @@ function refreshDistances() {
 }
 
 // ── GPS ────────────────────────────────────────────────────────
+let gpsLoading = false;
+let lastGpsRequest = 0;
+
 function requestLocation() {
+  const now = Date.now();
+  if (gpsLoading) {
+    toast('⏳ กำลังค้นหาตำแหน่งอยู่...','warn');
+    return;
+  }
+  if (now - lastGpsRequest < 5000) {
+    toast('⏱️ รอสักครู่ก่อนค้นหาใหม่ (5วินาที)','warn');
+    return;
+  }
   if (!navigator.geolocation) { toast('อุปกรณ์นี้ไม่รองรับ GPS','err'); return; }
+  
+  lastGpsRequest = now;
+  gpsLoading = true;
   const btn = document.getElementById('gpsBtn');
   btn.style.borderColor = 'rgba(249,115,22,0.5)';
   toast('กำลังหาตำแหน่ง…','info');
@@ -211,8 +226,9 @@ function requestLocation() {
       renderAll();
       btn.style.borderColor = 'rgba(34,197,94,0.5)';
       toast('✓ อัปเดตตำแหน่งแล้ว','ok');
+      gpsLoading = false;
     },
-    () => { btn.style.borderColor='rgba(255,255,255,0.08)'; toast('ไม่สามารถเข้าถึง GPS','err'); },
+    () => { btn.style.borderColor='rgba(255,255,255,0.08)'; toast('ไม่สามารถเข้าถึง GPS','err'); gpsLoading = false; },
     { enableHighAccuracy:true, timeout:10000 }
   );
 }
@@ -455,9 +471,27 @@ function renderDone() {
 function renderManage() {
   const tod = todayStr();
   let list = [...jobs];
+  
+  // Apply filter
   if (manFilter==='pending') list = list.filter(j=>j.status==='pending');
   else if (manFilter==='done') list = list.filter(j=>j.status==='done');
   else if (manFilter==='today') list = list.filter(j=>j.date===tod);
+
+  // Apply search
+  const searchInput = document.getElementById('manSearch');
+  const searchQuery = searchInput?.value?.toLowerCase().trim() || '';
+  if (searchQuery) {
+    list = list.filter(j => {
+      const name = (j.customerName || '').toLowerCase();
+      const phone = (j.phone || '').toLowerCase();
+      const location = (j.locationRaw || '').toLowerCase();
+      const tags = (j.tags || '').toLowerCase();
+      const wheelStr = (j.wheelStr || '').toLowerCase();
+      return name.includes(searchQuery) || phone.includes(searchQuery) || 
+             location.includes(searchQuery) || tags.includes(searchQuery) ||
+             wheelStr.includes(searchQuery);
+    });
+  }
 
   list.sort((a,b)=>{
     if (a.status!==b.status) return a.status==='pending'?-1:1;
@@ -876,7 +910,12 @@ function updateLocTypeHint() {
 
 function saveJob() {
   const name = document.getElementById('fName').value.trim();
-  if (!name) { toast('กรุณาใส่ชื่อลูกค้า','err'); document.getElementById('fName').focus(); return; }
+  // Validate form inputs
+  const validationErrors = validateJobForm();
+  if (showValidationErrors(validationErrors)) {
+    document.getElementById('fName').focus();
+    return;
+  }
 
   const locRaw = document.getElementById('fLocation').value.trim();
   const locType = classifyLoc(locRaw);
@@ -936,7 +975,9 @@ function closeExpenseModal() { document.getElementById('expenseModal').classList
 function saveExpense() {
   const name = document.getElementById('eName').value.trim();
   const amount = parseInt(document.getElementById('eAmount').value);
-  if(!name || isNaN(amount)){ toast('กรุณากรอกชื่อและจำนวนเงิน','err'); return; }
+  // Validate form inputs
+  const validationErrors = validateExpenseForm();
+  if (showValidationErrors(validationErrors)) return;
 
   const newId = db.collection(EXP_COLLECTION).doc().id;
   db.collection(EXP_COLLECTION).doc(newId).set({
@@ -980,6 +1021,113 @@ function setFilter(f, el) {
   renderManage();
 }
 
+// ── Validation Utils ─────────────────────────────────────────
+const VALIDATOR = {
+  customerName: (v) => {
+    if (!v || v.trim().length === 0) return 'กรุณากรอกชื่อลูกค้า';
+    if (v.trim().length > 100) return 'ชื่อต้องไม่เกิน 100 ตัวอักษร';
+    return null;
+  },
+  phone: (v) => {
+    if (!v) return null;
+    const cleaned = v.replace(/\D/g, '');
+    if (cleaned.length > 0 && cleaned.length < 9) return 'เบอร์โทรไม่ถูกต้อง';
+    if (cleaned.length > 12) return 'เบอร์โทรยาวเกินไป';
+    return null;
+  },
+  price: (v) => {
+    if (v === '' || v === null || v === undefined) return null;
+    const num = parseInt(v);
+    if (isNaN(num)) return 'ราคาต้องเป็นตัวเลข';
+    if (num < 0) return 'ราคาต้องไม่ติดลบ';
+    if (num > 1000000) return 'ราคาต้องไม่เกิน 1,000,000 บาท';
+    return null;
+  },
+  quantity: (v) => {
+    if (v === '' || v === null || v === undefined) return null;
+    const num = parseInt(v);
+    if (isNaN(num)) return 'จำนวนต้องเป็นตัวเลข';
+    if (num < 0) return 'จำนวนต้องไม่ติดลบ';
+    if (num > 1000) return 'จำนวนต้องไม่เกิน 1,000';
+    return null;
+  },
+  tags: (v) => {
+    if (!v) return null;
+    if (v.length > 200) return 'แท็กยาวเกินไป';
+    return null;
+  },
+  location: (v) => {
+    if (!v) return null;
+    if (v.length > 500) return 'ที่อยู่ยาวเกินไป';
+    return null;
+  }
+};
+
+function validateJobForm() {
+  const errors = [];
+  
+  const name = document.getElementById('fName').value;
+  let err = VALIDATOR.customerName(name);
+  if (err) errors.push(err);
+  
+  const phone = document.getElementById('fPhone').value;
+  err = VALIDATOR.phone(phone);
+  if (err) errors.push(err);
+  
+  const price = document.getElementById('fPrice').value;
+  err = VALIDATOR.price(price);
+  if (err) errors.push(err);
+  
+  const qty = document.getElementById('fQty').value;
+  err = VALIDATOR.quantity(qty);
+  if (err) errors.push(err);
+  
+  const loc = document.getElementById('fLocation').value;
+  err = VALIDATOR.location(loc);
+  if (err) errors.push(err);
+  
+  const tags = document.getElementById('fTags')?.value;
+  err = VALIDATOR.tags(tags);
+  if (err) errors.push(err);
+  
+  return errors;
+}
+
+function validateExpenseForm() {
+  const errors = [];
+  
+  const name = document.getElementById('eName').value;
+  if (!name || name.trim().length === 0) errors.push('กรุณากรอกชื่อรายจ่าย');
+  if (name && name.trim().length > 100) errors.push('ชื่อต้องไม่เกิน 100 ตัวอักษร');
+  
+  const amount = document.getElementById('eAmount').value;
+  const err = VALIDATOR.price(amount);
+  if (err) errors.push(err);
+  
+  return errors;
+}
+
+function showValidationErrors(errors) {
+  if (errors.length > 0) {
+    toast('⚠️ ' + errors[0], 'err');
+    return true;
+  }
+  return false;
+}
+
+// ── Debounce Utility ─────────────────────────────────────────
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
 // ── Utils ─────────────────────────────────────────────────────
 function getPhones(str) {
   if(!str) return [];
@@ -1012,6 +1160,8 @@ document.getElementById('cfOk').onclick=()=>{
   if(delTargetId){
     if(delTargetId.startsWith('__exp__')){
       _doDeleteExpense(delTargetId.slice(7));
+    } else if (delTargetId === '__import__') {
+      doImportBackup();
     } else {
       deleteJob(delTargetId);
     }
@@ -1113,6 +1263,89 @@ function exportToCSV() {
   document.body.removeChild(link);
   URL.revokeObjectURL(url); // Clean up object URL
   toast('📥 ส่งออกไฟล์ CSV สำเร็จ', 'ok');
+}
+
+function exportBackup() {
+  const backup = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    jobs: jobs,
+    expenses: expenses
+  };
+  const jsonStr = JSON.stringify(backup, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'logis_backup_' + todayStr() + '.json');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  toast('💾 สำรองข้อมูลสำเร็จ', 'ok');
+}
+
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.jobs || !Array.isArray(data.jobs)) {
+        throw new Error('Invalid backup format');
+      }
+      
+      // Confirm before restore
+      delTargetId = '__import__';
+      document.getElementById('cfTitle').textContent = 'กู้คืนข้อมูล?';
+      document.getElementById('cfMsg').textContent = `พบ ${data.jobs.length} งาน และ ${(data.expenses || []).length} รายจ่าย จะเขียนทับข้อมูลปัจจุบัน`;
+      document.getElementById('confirmDlg').classList.remove('hidden');
+      
+      // Store import data for later
+      window.importData = data;
+    } catch (err) {
+      toast('❌ ไฟล์ backup ไม่ถูกต้อง', 'err');
+      console.error('Import error:', err);
+    }
+  };
+  reader.readAsText(file);
+  input.value = ''; // Reset file input
+}
+
+function doImportBackup() {
+  const data = window.importData;
+  if (!data) return;
+  
+  const batch = db.batch();
+  
+  // Clear existing data first (optional - depends on desired behavior)
+  // For safety, we'll just add/update instead of clearing
+  
+  // Import jobs
+  data.jobs.forEach(j => {
+    if (j.id) {
+      const ref = db.collection(COLLECTION).doc(j.id);
+      batch.set(ref, j);
+    }
+  });
+  
+  // Import expenses
+  (data.expenses || []).forEach(e => {
+    if (e.id) {
+      const ref = db.collection(EXP_COLLECTION).doc(e.id);
+      batch.set(ref, e);
+    }
+  });
+  
+  batch.commit().then(() => {
+    toast('✅ กู้คืนข้อมูลสำเร็จ', 'ok');
+    window.importData = null;
+  }).catch(err => {
+    toast('❌ กู้คืนล้มเหลว: ' + err.message, 'err');
+    console.error('Import commit error:', err);
+  });
 }
 
 // Close modals on overlay click

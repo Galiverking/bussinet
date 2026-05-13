@@ -184,8 +184,17 @@
         <h2 style="font-size:16px;font-weight:700;color:#0f172a;">รายการทั้งหมด</h2>
         <div style="display:flex;gap:10px;align-items:center;">
           <span id="manCount" style="font-size:12px;color:#94a3b8;"></span>
-          <button onclick="exportToCSV()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(16,185,129,0.15);color:#34d399;font-weight:700;border:1px solid rgba(16,185,129,0.3);border-radius:8px;cursor:pointer;">📥 Export CSV</button>
+          <button onclick="exportToCSV()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(16,185,129,0.15);color:#34d399;font-weight:700;border:1px solid rgba(16,185,129,0.3);border-radius:8px;cursor:pointer;">📥 CSV</button>
+          <button onclick="exportBackup()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:700;border:1px solid rgba(59,130,246,0.3);border-radius:8px;cursor:pointer;">💾 Backup</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(this)">
+          <button onclick="document.getElementById('importFile').click()" class="btn-hover-effect" style="padding:5px 10px;font-size:11px;background:rgba(251,191,36,0.15);color:#fbbf24;font-weight:700;border:1px solid rgba(251,191,36,0.3);border-radius:8px;cursor:pointer;">📂 Restore</button>
         </div>
+      </div>
+
+      <!-- Search -->
+      <div style="margin-bottom:12px;">
+        <input type="text" id="manSearch" class="form-input" placeholder="🔍 ค้นหาชื่อ, เบอร์, สถานที่..." 
+               style="padding:10px 14px;font-size:13px;" oninput="renderManage()">
       </div>
 
       <!-- Filter pills (scrollable) -->
