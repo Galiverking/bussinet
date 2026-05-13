@@ -1643,10 +1643,11 @@ function saveFromQueueParser() {
 
   // Auto-request GPS on first visit
   if (!userLoc) setTimeout(requestLocation, 1200);
+})();
 
-  // Expose functions to global window AFTER init completes
-  window.toggleTheme = toggleTheme;
-  window.requestLocation = requestLocation;
+// Expose ALL functions to window IMMEDIATELY (before any user interaction)
+window.toggleTheme = toggleTheme;
+window.requestLocation = requestLocation;
   window.openAddModal = openAddModal;
   window.openParserModal = openParserModal;
   window.openQueueParserModal = openQueueParserModal;
@@ -1682,18 +1683,19 @@ function saveFromQueueParser() {
   window.toggleSortMode = toggleSortMode;
 
   console.log('[app.js] All functions exposed successfully');
-  console.log('[app.js] switchTab:', typeof window.switchTab);
-})();
 
-// Legacy fallback - also expose immediately for safety
+// Expose ALL functions to window (outside IIFE to ensure they're available immediately)
 window.toggleTheme = toggleTheme;
 window.requestLocation = requestLocation;
 window.openAddModal = openAddModal;
 window.openParserModal = openParserModal;
+window.openQueueParserModal = openQueueParserModal;
+window.closeQueueParserModal = closeQueueParserModal;
+window.runQueueParser = runQueueParser;
+window.saveFromQueueParser = saveFromQueueParser;
 window.switchTab = switchTab;
 window.setFilter = setFilter;
 window.openExpenseModal = openExpenseModal;
-window.toggleSortMode = toggleSortMode;
 window.completeJob = completeJob;
 window.undoJob = undoJob;
 window.undoPostpone = undoPostpone;
@@ -1712,59 +1714,11 @@ window.doPostpone = doPostpone;
 window.moveJob = moveJob;
 window.updateLocTypeHint = updateLocTypeHint;
 window.updateParsedLoc = updateParsedLoc;
-window.openQueueParserModal = openQueueParserModal;
-window.closeQueueParserModal = closeQueueParserModal;
-window.runQueueParser = runQueueParser;
-window.saveFromQueueParser = saveFromQueueParser;
-window.exportToCSV = exportToCSV;
-window.exportBackup = exportBackup;
-window.runParser = runParser;
-window.saveFromParser = saveFromParser;
-window.closeParserModal = closeParserModal;
-
-console.log('[app.js] Legacy fallback exposed');
-window.toggleTheme = toggleTheme;
-window.requestLocation = requestLocation;
-window.openAddModal = openAddModal;
-window.openParserModal = openParserModal;
-window.openQueueParserModal = openQueueParserModal;
-window.closeQueueParserModal = closeQueueParserModal;
-window.runQueueParser = runQueueParser;
-window.saveFromQueueParser = saveFromQueueParser;
-window.exportToCSV = exportToCSV;
-window.exportBackup = exportBackup;
-window.setFilter = setFilter;
-window.openExpenseModal = openExpenseModal;
-window.switchTab = switchTab;
-window.closeParserModal = closeParserModal;
-window.runParser = runParser;
-window.saveFromParser = saveFromParser;
-window.closeEditModal = closeEditModal;
-window.saveJob = saveJob;
-window.closeExpenseModal = closeExpenseModal;
-window.saveExpense = saveExpense;
-window.closeDetailModal = closeDetailModal;
-window.closePostponeModal = closePostponeModal;
-window.doPostpone = doPostpone;
-window.moveJob = moveJob;
-window.openDetailModal = openDetailModal;
-window.openPostponeModal = openPostponeModal;
-window.completeJob = completeJob;
-window.undoJob = undoJob;
-window.undoPostpone = undoPostpone;
-window.doConfirmDelete = doConfirmDelete;
-window.openEditById = openEditById;
-window.deleteExpense = deleteExpense;
-window.updateLocTypeHint = updateLocTypeHint;
-window.updateParsedLoc = updateParsedLoc;
 window.toggleSortMode = toggleSortMode;
+window.exportToCSV = exportToCSV;
+window.exportBackup = exportBackup;
+window.runParser = runParser;
+window.saveFromParser = saveFromParser;
+window.closeParserModal = closeParserModal;
 
-console.log('[app.js] All functions exposed to window successfully');
-console.log('[app.js] switchTab available:', typeof window.switchTab);
-
-// Also expose functions when DOM is ready
-if (typeof document !== 'undefined') {
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('[app.js] DOM ready');
-  });
-}
+console.log('[app.js] All functions exposed to window');
