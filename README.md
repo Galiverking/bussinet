@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Version-2026.05-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Supabase-Enabled-green.svg" alt="Supabase">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
+  <img src="https://img.shields.io/badge/License-Private-red.svg" alt="License">
 </p>
 
 > Smart Logistic Planner Pro — เครื่องมือจัดการงานขนส่งและบริการนอกสถานที่ส่วนตัว
@@ -98,7 +98,7 @@ bussinnet/
 
 ## 📄 License
 
-MIT License — สามารถใช้งานและแก้ไขได้อิสระ
+สำหรับการใช้งานส่วนตัวเท่านั้น — ห้ามนำไปใช้งานหรือแจกจ่ายโดยไม่ได้รับอนุญาต
 
 ---
 
