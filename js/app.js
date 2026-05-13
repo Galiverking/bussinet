@@ -1,25 +1,40 @@
 'use strict';
 
-// ── Firebase Config ──────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyBq8MxJ6HU_eMthWR3U17LAmh4qiwkwDE",
-  authDomain: "bussi-cae1d.firebaseapp.com",
-  projectId: "bussi-cae1d",
-  storageBucket: "bussi-cae1d.firebasestorage.app",
-  messagingSenderId: "1036146222343",
-  appId: "1:1036146222343:web:f0c1b5b1906861e14051a2",
-  measurementId: "G-PFTS6MRPZN"
-};
+console.log('[app.js] Starting...');
 
-// Initialize Firebase (Compat mode for simple usage)
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// Global supabase client
+let supabase = null;
+const SUPABASE_URL = 'https://ybmowexttijibnjsonhu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlibW93ZXh0dGlqaWJuanNvbmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTE0MDAsImV4cCI6MjA5NDIyNzQwMH0.p5fGmjbMTc7xGat_trpAH_cIg6PZE90XvavhdbQs5Dg';
 
-// Enable offline persistence
-db.enablePersistence().catch((err) => {
-  if (err.code == 'failed-precondition') console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-  else if (err.code == 'unimplemented') console.warn('The current browser does not support all of the features required to enable persistence.');
-});
+// Initialize Supabase when ready
+function initSupabase() {
+  if (window.supabase && !supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('[app.js] Supabase initialized');
+    // Load data after Supabase is ready
+    loadJobs();
+    refreshDistances();
+    renderAll();
+    updateClock();
+    setInterval(updateClock, 15000);
+    setInterval(()=>{ if(userLoc){ refreshDistances(); renderAll(); } }, 60000);
+    setTimeout(runAutoCleanup, 3000);
+    setInterval(runAutoCleanup, 5 * 60000);
+    if (!userLoc) setTimeout(requestLocation, 1200);
+    console.log('[app.js] App initialized successfully ✅');
+  }
+}
+
+// Try to init immediately, or poll
+initSupabase();
+if (!supabase) {
+  let retries = 30;
+  const poll = setInterval(() => {
+    initSupabase();
+    if (supabase || retries-- <= 0) clearInterval(poll);
+  }, 100);
+}
 
 // ── State ────────────────────────────────────────────────────
 let jobs         = [];
@@ -66,42 +81,45 @@ const COLLECTION = 'jobs';
 const EXP_COLLECTION = 'expenses';
 
 function loadJobs() {
-  // Use Firestore onSnapshot with metadata to track real sync status
-  db.collection(COLLECTION).onSnapshot(
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const updatedJobs = [];
-      snapshot.forEach(doc => {
-        updatedJobs.push({ id: doc.id, ...doc.data() });
-      });
-      jobs = updatedJobs;
+  const jobChannel = supabase.channel('jobs-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
+      fetchJobs();
+    })
+    .subscribe();
 
-      // Check if data is from server or local cache
-      const hasPending = snapshot.metadata.hasPendingWrites;
-      const fromCache = snapshot.metadata.fromCache;
+  const expChannel = supabase.channel('expenses-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
+      fetchExpenses();
+    })
+    .subscribe();
 
-      if (!fromCache && !hasPending) {
-        updateSyncStatus('synced');
-      } else if (hasPending) {
-        updateSyncStatus('pending');
-      } else if (fromCache) {
-        updateSyncStatus('offline');
-      }
+  fetchJobs();
+  fetchExpenses();
+}
 
-      renderAll();
-    },
-    (error) => {
-      console.error("Error fetching jobs: ", error);
-      updateSyncStatus('error');
-    }
-  );
+async function fetchJobs() {
+  const { data, error } = await supabase.from(COLLECTION).select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.error('[Supabase] Error fetching jobs:', error.message, error.details);
+    updateSyncStatus('error');
+    toast('❌ ไม่สามารถโหลดงานได้: ' + error.message, 'err');
+    return;
+  }
+  jobs = data || [];
+  console.log('[Supabase] Jobs loaded:', jobs.length);
+  updateSyncStatus('synced');
+  renderAll();
+}
 
-  db.collection(EXP_COLLECTION).onSnapshot((snapshot) => {
-    const updated = [];
-    snapshot.forEach(doc => updated.push({ id: doc.id, ...doc.data() }));
-    expenses = updated;
-    renderAll();
-  });
+async function fetchExpenses() {
+  const { data, error } = await supabase.from(EXP_COLLECTION).select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.error('[Supabase] Error fetching expenses:', error.message, error.details);
+    toast('❌ ไม่สามารถโหลดรายจ่ายได้: ' + error.message, 'err');
+    return;
+  }
+  expenses = data || [];
+  renderAll();
 }
 
 function updateSyncStatus(state) {
@@ -122,7 +140,7 @@ function updateSyncStatus(state) {
   text.style.color = s.color;
 }
 
-function genId() { return db.collection(COLLECTION).doc().id; }
+function genId() { return crypto.randomUUID(); }
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 
@@ -147,13 +165,13 @@ const LOC_LABEL = { coords:'GPS พิกัด', url:'ลิ้งค์ Maps',
 const LOC_COLOR = { coords:'#93c5fd', url:'#86efac', place:'#fcd34d', placeholder:'#a78bfa' };
 
 function buildMapsUrl(job) {
-  if (!job.locationRaw || job.locationType === 'placeholder') return null;
+  if (!job.location_raw || job.locationType === 'placeholder') return null;
   let url;
   switch(job.locationType) {
-    case 'url':    url = job.locationRaw; break;
-    case 'coords': url = `https://maps.google.com/?q=${job.locationRaw.replace(/\s/g,'')}`; break;
-    case 'place':  url = `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`; break;
-    default:       url = `https://maps.google.com/?q=${encodeURIComponent(job.locationRaw)}`; break;
+    case 'url':    url = job.location_raw; break;
+    case 'coords': url = `https://maps.google.com/?q=${job.location_raw.replace(/\s/g,'')}`; break;
+    case 'place':  url = `https://maps.google.com/?q=${encodeURIComponent(job.location_raw)}`; break;
+    default:       url = `https://maps.google.com/?q=${encodeURIComponent(job.location_raw)}`; break;
   }
   // Security: only allow https:// URLs
   if (!url || !/^https:\/\//i.test(url)) return null;
@@ -175,25 +193,19 @@ function parseCoords(raw) {
 
 function calcDist(job) {
   if (!userLoc || job.locationType !== 'coords') return null;
-  const c = parseCoords(job.locationRaw);
+  const c = parseCoords(job.location_raw);
   return c ? haversine(userLoc.lat, userLoc.lng, c.lat, c.lng) : null;
 }
 
-function refreshDistances() {
-  const batch = db.batch();
-  let hasChanges = false;
-  jobs.forEach(j => {
+async function refreshDistances() {
+  for (const j of jobs) {
     const newDist = calcDist(j);
-    if (newDist !== j.distanceKm) {
-      j.distanceKm = newDist;
+    if (newDist !== j.distance_km) {
+      j.distance_km = newDist;
       if (j.id) {
-        batch.update(db.collection(COLLECTION).doc(j.id), { distanceKm: newDist });
-        hasChanges = true;
+        await supabase.from(COLLECTION).update({ distance_km: newDist }).eq('id', j.id);
       }
     }
-  });
-  if (hasChanges) {
-    batch.commit().catch(err => console.warn('Distance sync error:', err));
   }
 }
 
@@ -222,13 +234,19 @@ function requestLocation() {
     pos => {
       userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       localStorage.setItem(LS_LOC, JSON.stringify(userLoc));
+      console.log('[GPS] Location updated:', userLoc);
       refreshDistances();
       renderAll();
       btn.style.borderColor = 'rgba(34,197,94,0.5)';
       toast('✓ อัปเดตตำแหน่งแล้ว','ok');
       gpsLoading = false;
     },
-    () => { btn.style.borderColor='rgba(255,255,255,0.08)'; toast('ไม่สามารถเข้าถึง GPS','err'); gpsLoading = false; },
+    (err) => {
+      console.error('[GPS] Error:', err.code, err.message);
+      btn.style.borderColor='rgba(255,255,255,0.08)';
+      toast('ไม่สามารถเข้าถึง GPS: ' + (err.code === 1 ? 'ถูกปฏิเสธ' : 'ไม่พบตำแหน่ง'), 'err');
+      gpsLoading = false;
+    },
     { enableHighAccuracy:true, timeout:10000 }
   );
 }
@@ -249,16 +267,16 @@ function getSorted() {
     if (isManualSort) {
       return (a.priority || 0) - (b.priority || 0);
     }
-    if (a.distanceKm!=null && b.distanceKm!=null) return a.distanceKm - b.distanceKm;
-    if (a.distanceKm!=null) return -1;
-    if (b.distanceKm!=null) return 1;
-    return new Date(a.createdAt) - new Date(b.createdAt);
+    if (a.distance_km!=null && b.distance_km!=null) return a.distance_km - b.distance_km;
+    if (a.distance_km!=null) return -1;
+    if (b.distance_km!=null) return 1;
+    return new Date(a.created_at) - new Date(b.created_at);
   });
   const postponed = jobs.filter(j=>j.status==='pending' && j.postponed).sort((a,b)=>
-    new Date(a.postponeDate||'9999') - new Date(b.postponeDate||'9999')
+    new Date(a.postpone_date||'9999') - new Date(b.postpone_date||'9999')
   );
   const done = jobs.filter(j=>j.status==='done').sort((a,b)=>
-    new Date(b.completedAt||b.createdAt) - new Date(a.completedAt||a.createdAt)
+    new Date(b.completed_at||b.created_at) - new Date(a.completed_at||a.created_at)
   );
   return { pending, postponed, done };
 }
@@ -272,18 +290,18 @@ function calcETAClocks(pendingJobs) {
   return pendingJobs.map((j, i) => {
     if (i > 0) {
       const prev = pendingJobs[i-1];
-      if (prev.distanceKm != null && j.distanceKm != null) {
-        const distBetween = Math.abs(j.distanceKm - prev.distanceKm) || j.distanceKm;
+      if (prev.distance_km != null && j.distance_km != null) {
+        const distBetween = Math.abs(j.distance_km - prev.distance_km) || j.distance_km;
         cumMins += Math.ceil((distBetween / AVG_SPEED_KMH) * 60);
-      } else if (j.distanceKm != null) {
-        cumMins += Math.ceil((j.distanceKm / AVG_SPEED_KMH) * 60);
+      } else if (j.distance_km != null) {
+        cumMins += Math.ceil((j.distance_km / AVG_SPEED_KMH) * 60);
       } else {
         cumMins += 15;
       }
       cumMins += AVG_WORK_MINS;
     } else {
-      if (j.distanceKm != null) {
-        cumMins += Math.ceil((j.distanceKm / AVG_SPEED_KMH) * 60);
+      if (j.distance_km != null) {
+        cumMins += Math.ceil((j.distance_km / AVG_SPEED_KMH) * 60);
       }
     }
     const eta = new Date(now.getTime() + cumMins * 60000);
@@ -345,10 +363,10 @@ function renderPending() {
 
 function cardPending(j, pri, etaInfo) {
   const mapsUrl = buildMapsUrl(j);
-  const distBadge = j.distanceKm!=null
-    ? `<span class="dist-badge">${j.distanceKm.toFixed(1)} กม.</span>` : '';
-  const timeBadge = j.timeNote
-    ? `<span class="time-tag">⏰ ${esc(j.timeNote)}</span>` : '';
+  const distBadge = j.distance_km!=null
+    ? `<span class="dist-badge">${j.distance_km.toFixed(1)} กม.</span>` : '';
+  const timeBadge = j.time_note
+    ? `<span class="time-tag">⏰ ${esc(j.time_note)}</span>` : '';
   const locIcon  = LOC_ICON[j.locationType]  || '📍';
   const locLabel = LOC_LABEL[j.locationType] || '';
   const etaBadge = etaInfo ? `<span class="eta-badge">🕐 ${formatETAClock(etaInfo.etaTime)}</span>` : '';
@@ -371,7 +389,7 @@ function cardPending(j, pri, etaInfo) {
       <!-- Row 1: priority + name + dist + ETA -->
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
         <span class="badge${pri===1?' p1':''}">#${pri}</span>
-        <span style="font-size:16px;font-weight:700;color:#0f172a;flex:1;line-height:1.3;">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
+        <span style="font-size:16px;font-weight:700;color:#0f172a;flex:1;line-height:1.3;">${esc(j.customer_name||'ไม่ระบุชื่อ')}</span>
         <div style="display:flex;align-items:flex-end;gap:8px;">
            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
              ${distBadge}
@@ -387,9 +405,9 @@ function cardPending(j, pri, etaInfo) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8899b0" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.96h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.5 18Z"/></svg>
           ${esc(p)}</div>`).join('')}
 
-        ${j.locationRaw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;">
+        ${j.location_raw ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;">
           <span>${locIcon}</span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.locationRaw)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.location_raw)}</span>
           <span style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;color:#334155;flex-shrink:0;">${locLabel}</span>
         </div>` : ''}
 
@@ -397,7 +415,7 @@ function cardPending(j, pri, etaInfo) {
           ${j.price ? `<span style="font-size:13px;color:#f87171;font-weight:600;">จ่าย ฿${j.price.toLocaleString('th-TH')}</span>` : ''}
           ${j.wheelSizes && j.wheelSizes.length > 0
             ? j.wheelSizes.map(ws=>`<span style="font-size:11px;color:#c4b5fd;background:rgba(196,181,253,0.1);padding:2px 7px;border-radius:5px;border:1px solid rgba(196,181,253,0.2);">🔵 ${ws.size}" ×${ws.qty}</span>`).join('')
-            : (j.wheelStr ? `<span style="font-size:12px;color:#334155;">${esc(j.wheelStr)}</span>` : '')}
+            : (j.wheel_str ? `<span style="font-size:12px;color:#334155;">${esc(j.wheel_str)}</span>` : '')}
           ${j.quantity ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>` : ''}
           ${j.tags ? `<span style="font-size:11px;background:rgba(255,255,255,0.08);color:#334155;padding:2px 6px;border-radius:6px;">🏷️ ${esc(j.tags)}</span>` : ''}
           ${timeBadge}
@@ -427,8 +445,8 @@ function renderPostponed() {
   if (!postponed.length) { el.innerHTML=''; return; }
   el.innerHTML = `<div class="sec-h">เลื่อนนัด (${postponed.length})</div>` +
     postponed.map(j=>{
-      const dateLabel = j.postponeDate 
-        ? new Date(j.postponeDate).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
+      const dateLabel = j.postpone_date 
+        ? new Date(j.postpone_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
         : 'ไม่มีกำหนด';
       return `
       <div class="job-postponed mb-2" onclick="openDetailModal('${j.id}')">
@@ -437,7 +455,7 @@ function renderPostponed() {
             <span style="font-size:10px;">🔄</span>
           </div>
           <div style="flex:1;">
-            <div style="font-size:13px;font-weight:600;color:#334155;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:13px;font-weight:600;color:#334155;">${esc(j.customer_name||'ไม่ระบุชื่อ')}</div>
             <div style="font-size:11px;color:#334155;">📅 ${dateLabel}</div>
           </div>
           <button onclick="event.stopPropagation();undoPostpone('${j.id}')" style="font-size:11px;color:#fbbf24;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">คืนคิว</button>
@@ -459,7 +477,7 @@ function renderDone() {
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>
         </div>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:600;color:#6b7f99;text-decoration:line-through;">${esc(j.customerName||'ไม่ระบุชื่อ')}</div>
+          <div style="font-size:13px;font-weight:600;color:#6b7f99;text-decoration:line-through;">${esc(j.customer_name||'ไม่ระบุชื่อ')}</div>
           ${j.price?`<div style="font-size:11px;color:#5a6d84;">${j.price.toLocaleString('th-TH')} ฿</div>`:''}
         </div>
         <button onclick="undoJob('${j.id}')" style="font-size:11px;color:#334155;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ย้อน</button>
@@ -482,11 +500,11 @@ function renderManage() {
   const searchQuery = searchInput?.value?.toLowerCase().trim() || '';
   if (searchQuery) {
     list = list.filter(j => {
-      const name = (j.customerName || '').toLowerCase();
+      const name = (j.customer_name || '').toLowerCase();
       const phone = (j.phone || '').toLowerCase();
-      const location = (j.locationRaw || '').toLowerCase();
+      const location = (j.location_raw || '').toLowerCase();
       const tags = (j.tags || '').toLowerCase();
-      const wheelStr = (j.wheelStr || '').toLowerCase();
+      const wheelStr = (j.wheel_str || '').toLowerCase();
       return name.includes(searchQuery) || phone.includes(searchQuery) || 
              location.includes(searchQuery) || tags.includes(searchQuery) ||
              wheelStr.includes(searchQuery);
@@ -495,7 +513,7 @@ function renderManage() {
 
   list.sort((a,b)=>{
     if (a.status!==b.status) return a.status==='pending'?-1:1;
-    return new Date(b.createdAt)-new Date(a.createdAt);
+    return new Date(b.created_at)-new Date(a.created_at);
   });
 
   document.getElementById('manCount').textContent = `${list.length} รายการ`;
@@ -511,7 +529,7 @@ function renderManage() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:7px;flex:1;">
           <span style="width:8px;height:8px;border-radius:50%;background:${j.status==='pending'?'#3b82f6':'#22c55e'};flex-shrink:0;"></span>
-          <span style="font-size:14px;font-weight:600;color:${j.status==='pending'?'#f1f5f9':'#6b7280'};">${esc(j.customerName||'ไม่ระบุชื่อ')}</span>
+          <span style="font-size:14px;font-weight:600;color:${j.status==='pending'?'#f1f5f9':'#6b7280'};">${esc(j.customer_name||'ไม่ระบุชื่อ')}</span>
           ${j.postponed ? `<span style="font-size:10px;background:rgba(251,191,36,0.1);color:#fbbf24;padding:1px 6px;border:1px solid rgba(251,191,36,0.2);border-radius:4px;margin-left:4px;font-weight:700;">เลื่อนนัด</span>` : ''}
         </div>
         <div style="display:flex;gap:5px;">
@@ -527,18 +545,18 @@ function renderManage() {
       <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#334155;margin-bottom:5px;">
         ${j.phone?`<span>📞 ${j.phone}</span>`:''}
         ${j.price?`<span style="color:#ef4444;">จ่าย ฿ ${j.price.toLocaleString('th-TH')}</span>`:''}
-        ${j.wheelStr?`<span>🔵 ${esc(j.wheelStr)}</span>`:''}
+        ${j.wheel_str?`<span>🔵 ${esc(j.wheel_str)}</span>`:''}
         ${j.quantity?`<span style="color:#c4b5fd;">( ${j.quantity} วง )</span>`:''}
-        ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
-        ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
+        ${j.distance_km!=null?`<span style="color:#93c5fd;">📏 ${j.distance_km.toFixed(1)} กม.</span>`:''}
+        ${j.time_note?`<span style="color:#fca5a5;">⏰ ${esc(j.time_note)}</span>`:''}
         ${j.tags?`<span style="color:#94a3b8;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:4px;">🏷️ ${esc(j.tags)}</span>`:''}
       </div>
 
-      ${j.locationRaw?`<div style="font-size:11px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        ${LOC_ICON[j.locationType]||'📍'} ${esc(j.locationRaw)}</div>`:''}
+      ${j.location_raw?`<div style="font-size:11px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        ${LOC_ICON[j.locationType]||'📍'} ${esc(j.location_raw)}</div>`:''}
 
       <div style="margin-top:6px;font-size:10px;color:#374151;">
-        ${new Date(j.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+        ${new Date(j.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
         ${j.status==='done'?' • ✓ เสร็จแล้ว':''}
       </div>
     </div>`).join('');
@@ -552,10 +570,10 @@ function renderExpense() {
 
   let list = [];
   todJobs.forEach(j => {
-    list.push({ isJob: true, title: `ค่าล้อ: ${j.customerName}`, amount: j.price, time: j.createdAt });
+    list.push({ isJob: true, title: `ค่าล้อ: ${j.customer_name}`, amount: j.price, time: j.created_at });
   });
   todExpenses.forEach(e => {
-    list.push({ isJob: false, id: e.id, title: e.name, amount: e.amount, tags: e.tags, time: e.createdAt });
+    list.push({ isJob: false, id: e.id, title: e.name, amount: e.amount, tags: e.tags, time: e.created_at });
   });
 
   list.sort((a,b)=> new Date(b.time) - new Date(a.time));
@@ -587,57 +605,52 @@ function renderExpense() {
 // ── Actions ───────────────────────────────────────────────────
 function completeJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  db.collection(COLLECTION).doc(id).update({
-    status: 'done',
-    completedAt: new Date().toISOString()
-  }).then(() => {
-    toast(`✅ "${j.customerName}" เสร็จแล้ว`, 'ok');
-  });
+  supabase.from(COLLECTION).update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', id)
+    .then(() => toast(`✅ "${j.customer_name}" เสร็จแล้ว`, 'ok'));
 }
 function undoJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  db.collection(COLLECTION).doc(id).update({
-    status: 'pending',
-    completedAt: null
-  }).then(() => {
-    toast(`↩️ ย้าย "${j.customerName}" กลับ`, 'info');
-  });
+  supabase.from(COLLECTION).update({ status: 'pending', completed_at: null }).eq('id', id)
+    .then(() => toast(`↩️ ย้าย "${j.customer_name}" กลับ`, 'info'))
+    .catch(err => {
+      console.error('[Supabase] Error undo job:', err.message);
+      toast('❌ ไม่สามารถย้ายกลับได้: ' + err.message, 'err');
+    });
 }
 function doConfirmDelete(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
   delTargetId=id;
   document.getElementById('cfTitle').textContent='ลบงาน?';
-  document.getElementById('cfMsg').textContent=`ลบ "${j.customerName}" ออกจากรายการ ไม่สามารถกู้คืนได้`;
+  document.getElementById('cfMsg').textContent=`ลบ "${j.customer_name}" ออกจากรายการ ไม่สามารถกู้คืนได้`;
   document.getElementById('confirmDlg').classList.remove('hidden');
 }
 function deleteJob(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
-  db.collection(COLLECTION).doc(id).delete().then(() => {
-    toast(`🗑️ ลบ "${j.customerName}" แล้ว`, 'err');
-  });
+  supabase.from(COLLECTION).delete().eq('id', id)
+    .then(() => toast(`🗑️ ลบ "${j.customer_name}" แล้ว`, 'err'))
+    .catch(err => {
+      console.error('[Supabase] Error deleting job:', err.message);
+      toast('❌ ไม่สามารถลบงานได้: ' + err.message, 'err');
+    });
 }
 
-function toggleSortMode(val) {
+async function toggleSortMode(val) {
   isManualSort = val;
   localStorage.setItem('logis_manualSort', val);
   document.getElementById('sortLabel').textContent = val ? 'MANUAL' : 'AUTO';
   document.getElementById('sortLabel').style.color = val ? '#3b82f6' : '#475569';
   
   if (val) {
-    // Initialize priorities in Firestore
     const { pending } = getSorted(); 
-    const batch = db.batch();
-    pending.forEach((j, i) => { 
-      const ref = db.collection(COLLECTION).doc(j.id);
-      batch.update(ref, { priority: i });
-    });
-    batch.commit();
+    for (let i = 0; i < pending.length; i++) {
+      await supabase.from(COLLECTION).update({ priority: i }).eq('id', pending[i].id);
+    }
   }
   renderAll();
   toast(val ? '🔧 เข้าสู่โหมดจัดลำดับเอง' : '📍 กลับสู่โหมดเรียงตามระยะทาง', 'info');
 }
 
-function moveJob(id, dir) {
+async function moveJob(id, dir) {
   const { pending } = getSorted();
   const idx = pending.findIndex(j => j.id === id);
   if (idx === -1) return;
@@ -648,11 +661,9 @@ function moveJob(id, dir) {
   const current = pending[idx];
   const target = pending[targetIdx];
   
-  // Swap priorities in Firestore
-  const batch = db.batch();
-  batch.update(db.collection(COLLECTION).doc(current.id), { priority: target.priority });
-  batch.update(db.collection(COLLECTION).doc(target.id), { priority: current.priority });
-  batch.commit().then(() => renderAll());
+  await supabase.from(COLLECTION).update({ priority: target.priority }).eq('id', current.id);
+  await supabase.from(COLLECTION).update({ priority: current.priority }).eq('id', target.id);
+  renderAll();
 }
 
 
@@ -684,7 +695,7 @@ function parseText(text) {
   if (blocks.length <= 1) blocks = text.split(/\n\s*\n\s*\n/);
   
   blocks = blocks.map(b => b.replace(/^นัดรับวัน.+$/m, '').trim()).filter(b => b.length > 5);
-  return blocks.map(parseBlock).filter(j => j.customerName || j.phone || j.locationRaw);
+  return blocks.map(parseBlock).filter(j => j.customer_name || j.phone || j.location_raw);
 }
 
 function parseBlock(block) {
@@ -692,15 +703,15 @@ function parseBlock(block) {
 
   // Customer name
   let m = block.match(/ชื่อ(?:เฟส)?\s*[:：]\s*(.+)/i);
-  if (m) job.customerName = m[1].trim().split('\n')[0].trim();
+  if (m) job.customer_name = m[1].trim().split('\n')[0].trim();
   
-  if (!job.customerName) {
+  if (!job.customer_name) {
     const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
     for (const line of lines) {
       if (!/^\d+\.พิกัด|โทร|ล้อ|ราคา|ชื่อ|ไม่เกิน|ก่อน|หลัง|รวม|\*\*/i.test(line) &&
           !/^(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDDFF]){2,}/u.test(line)) {
-        job.customerName = line.replace(/^[☀️🌞🌟\-\s#*0-9.]+/,'').trim().split('\n')[0].trim();
-        if (job.customerName) break;
+        job.customer_name = line.replace(/^[☀️🌞🌟\-\s#*0-9.]+/,'').trim().split('\n')[0].trim();
+        if (job.customer_name) break;
       }
     }
   }
@@ -724,13 +735,13 @@ function parseBlock(block) {
   m = block.match(/(?:\d+\.)?พิกัด\s*[:：]\s*(.+)/i) || 
       block.match(/(?:ที่อยู่|สถานที่|Location|Maps?)\s*[:：]\s*(.+)/i);
   if (m) {
-    job.locationRaw = m[1].trim().split('\n')[0].trim();
-    job.locationType = classifyLoc(job.locationRaw);
-  } else if (!job.customerName) {
+    job.location_raw = m[1].trim().split('\n')[0].trim();
+    job.locationType = classifyLoc(job.location_raw);
+  } else if (!job.customer_name) {
     const first = block.split('\n')[0];
     if (classifyLoc(first) !== 'place') {
-      job.locationRaw = first.trim();
-      job.locationType = classifyLoc(job.locationRaw);
+      job.location_raw = first.trim();
+      job.locationType = classifyLoc(job.location_raw);
     }
   }
 
@@ -738,7 +749,7 @@ function parseBlock(block) {
   const wheelMatch = block.match(/ล้อ\s*[:：|]\s*(.+)/i);
   if (wheelMatch) {
     const wheelLine = wheelMatch[1].trim();
-    job.wheelStr = wheelLine.replace(/ราคา[\s:]*[\d,]+(?:\s*(?:บ\.?|บาท))?/gi, '').replace(/[\d,]+\s*(?:บ\.?|บาท)/gi, '').replace(/\*\*.+?\*\*/g,'').trim();
+    job.wheel_str = wheelLine.replace(/ราคา[\s:]*[\d,]+(?:\s*(?:บ\.?|บาท))?/gi, '').replace(/[\d,]+\s*(?:บ\.?|บาท)/gi, '').replace(/\*\*.+?\*\*/g,'').trim();
     
     // Total price **รวมX,XXXบาท**
     const totalMatch = block.match(/\*\*\s*รวม\s*([\d,]+)\s*(?:บ\.?|บาท)?\s*\*\*/i);
@@ -783,18 +794,18 @@ function parseBlock(block) {
   // Time note: any text between ** ** markers, or common time keywords
   m = block.match(/\*\*\s*(.+?)\s*\*\*/i);
   if (m && !/^รวม/i.test(m[1])) {
-    job.timeNote = m[1].trim().slice(0, 50);
+    job.time_note = m[1].trim().slice(0, 50);
   }
-  if (!job.timeNote) {
+  if (!job.time_note) {
     m = block.match(/((?:ก่อน|หลัง|ไม่เกิน|ภายใน|ตั้งแต่|ช่วง|เวลา|นัด|รอ|ประมาณ|ถึง).{2,40})/i);
-    if (m) job.timeNote = m[1].replace(/\*/g, '').trim().slice(0, 50);
+    if (m) job.time_note = m[1].replace(/\*/g, '').trim().slice(0, 50);
   }
 
   job.rawNote = block;
 
   if (job.locationType === 'coords' && userLoc) {
-    const c = parseCoords(job.locationRaw);
-    if (c) job.distanceKm = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
+    const c = parseCoords(job.location_raw);
+    if (c) job.distance_km = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
   }
   return job;
 }
@@ -814,52 +825,56 @@ function showPreview(list) {
       ? j.wheelSizes.map(ws=>`<span style="color:#c4b5fd;background:rgba(196,181,253,0.12);padding:1px 6px;border-radius:5px;border:1px solid rgba(196,181,253,0.25);">🔵 ${ws.size}" × ${ws.qty}วง</span>`).join(' ')
       : (j.quantity ? `<span style="color:#a5b4fc;">× ${j.quantity} วง</span>` : '');
     return `
-    <div class="parse-card ${j.customerName?'ok':'warn'}">
-      <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:7px;">งานที่ ${i+1}: ${esc(j.customerName||'⚠️ ไม่พบชื่อ')}</div>
+    <div class="parse-card ${j.customer_name?'ok':'warn'}">
+      <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:7px;">งานที่ ${i+1}: ${esc(j.customer_name||'⚠️ ไม่พบชื่อ')}</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;">
         ${j.phone?`<span style="color:#86efac;">📞 ${esc(j.phone)}</span>`:`<span style="color:#f87171;">📞 ไม่พบ</span>`}
-        ${j.locationRaw
-          ?`<span style="color:${LOC_COLOR[j.locationType]}">${LOC_ICON[j.locationType]} ${LOC_LABEL[j.locationType]}: ${esc(j.locationRaw.slice(0,35))}${j.locationRaw.length>35?'…':''}</span>`
+        ${j.location_raw
+          ?`<span style="color:${LOC_COLOR[j.locationType]}">${LOC_ICON[j.locationType]} ${LOC_LABEL[j.locationType]}: ${esc(j.location_raw.slice(0,35))}${j.location_raw.length>35?'…':''}</span>`
           :`<span style="color:#f87171;">📍 ไม่พบพิกัด</span>`}
-        ${j.locationRaw && j.locationRaw.includes('(โลเคชั่นทางแชท)') ? `<div style="width:100%;margin-top:5px;"><input type="text" class="form-input loc-override" placeholder="วางลิงก์พิกัดที่นี่..." style="font-size:11px;padding:6px;width:100%;" onchange="updateParsedLoc(${i}, this.value)"></div>` : ''}
+        ${j.location_raw && j.location_raw.includes('(โลเคชั่นทางแชท)') ? `<div style="width:100%;margin-top:5px;"><input type="text" class="form-input loc-override" placeholder="วางลิงก์พิกัดที่นี่..." style="font-size:11px;padding:6px;width:100%;" onchange="updateParsedLoc(${i}, this.value)"></div>` : ''}
         ${j.price?`<span style="color:#34d399;">฿ ${j.price.toLocaleString('th-TH')}</span>`:`<span style="color:#f87171;">฿ ไม่พบ</span>`}
         ${wheelBadges}
-        ${j.timeNote?`<span style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</span>`:''}
-        ${j.distanceKm!=null?`<span style="color:#93c5fd;">📏 ${j.distanceKm.toFixed(1)} กม.</span>`:''}
+        ${j.time_note?`<span style="color:#fca5a5;">⏰ ${esc(j.time_note)}</span>`:''}
+        ${j.distance_km!=null?`<span style="color:#93c5fd;">📏 ${j.distance_km.toFixed(1)} กม.</span>`:''}
       </div>
     </div>`;}).join('');
 }
 
 window.updateParsedLoc = function(idx, val) {
   if (parsedBuf[idx]) {
-    parsedBuf[idx].locationRaw = val;
+    parsedBuf[idx].location_raw = val;
     parsedBuf[idx].locationType = classifyLoc(val);
     if (parsedBuf[idx].locationType === 'coords' && userLoc) {
       const c = parseCoords(val);
-      if (c) parsedBuf[idx].distanceKm = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
+      if (c) parsedBuf[idx].distance_km = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
     }
   }
 };
 
-function saveFromParser() {
+async function saveFromParser() {
   if (!parsedBuf.length) return;
-  const batch = db.batch();
   let added = 0;
-  parsedBuf.forEach(j => {
+  let failed = 0;
+  console.log('[Parser] Saving', parsedBuf.length, 'jobs');
+  for (const j of parsedBuf) {
     const dup = j.phone && jobs.some(x => x.phone === j.phone && x.status === 'pending');
     if (!dup) {
-      const ref = db.collection(COLLECTION).doc(j.id);
-      batch.set(ref, j);
-      added++;
+      try {
+        await supabase.from(COLLECTION).insert([mapJobToDb(j)]);
+        added++;
+      } catch(err) {
+        console.error('[Parser] Error inserting job:', j.customer_name, err.message);
+        failed++;
+      }
     }
-  });
-  batch.commit().then(() => {
-    closeParserModal();
+  }
+  closeParserModal();
+  if (failed > 0) {
+    toast(`⚠️ บันทึก ${added} งาน, ล้มเหลว ${failed} งาน`, 'warn');
+  } else {
     toast(`✅ บันทึก ${added} งานแล้ว (Cloud Sync)`, 'ok');
-  }).catch(err => {
-    console.error('saveFromParser error:', err);
-    toast('❌ บันทึกผิดพลาด กรุณาลองใหม่', 'err');
-  });
+  }
 }
 
 
@@ -882,14 +897,14 @@ function openEditById(id) {
   editingId=id;
   document.getElementById('editTitle').textContent='✏️ แก้ไขงาน';
   document.getElementById('editId').value=id;
-  document.getElementById('fName').value=j.customerName||'';
+  document.getElementById('fName').value=j.customer_name||'';
   document.getElementById('fPhone').value=j.phone||'';
-  document.getElementById('fLocation').value=j.locationRaw||'';
+  document.getElementById('fLocation').value=j.location_raw||'';
   document.getElementById('fPrice').value=j.price||'';
-  if(document.getElementById('fWheelStr')) document.getElementById('fWheelStr').value=j.wheelStr||'';
+  if(document.getElementById('fWheelStr')) document.getElementById('fWheelStr').value=j.wheel_str||'';
   if(document.getElementById('fTags')) document.getElementById('fTags').value=j.tags||'';
   document.getElementById('fQty').value=j.quantity||'';
-  document.getElementById('fTime').value=j.timeNote||'';
+  document.getElementById('fTime').value=j.time_note||'';
   document.getElementById('fNote').value=j.rawNote||'';
   updateLocTypeHint();
   document.getElementById('editModal').classList.remove('hidden');
@@ -910,7 +925,6 @@ function updateLocTypeHint() {
 
 function saveJob() {
   const name = document.getElementById('fName').value.trim();
-  // Validate form inputs
   const validationErrors = validateJobForm();
   if (showValidationErrors(validationErrors)) {
     document.getElementById('fName').focus();
@@ -925,40 +939,67 @@ function saveJob() {
     if (c) distKm = haversine(userLoc.lat,userLoc.lng,c.lat,c.lng);
   }
 
-  const data = {
+  const data = mapJobToDb({
     customerName: name,
-    phone:       document.getElementById('fPhone').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
     locationRaw: locRaw,
     locationType: locType,
-    price:       parseInt(document.getElementById('fPrice').value)||0,
-    wheelStr:    document.getElementById('fWheelStr') ? document.getElementById('fWheelStr').value.trim() : '',
-    tags:        document.getElementById('fTags') ? document.getElementById('fTags').value.trim() : '',
-    quantity:    parseInt(document.getElementById('fQty').value)||0,
-    timeNote:    document.getElementById('fTime').value.trim(),
-    rawNote:     document.getElementById('fNote').value.trim(),
-    distanceKm:  distKm,
-  };
+    price: parseInt(document.getElementById('fPrice').value)||0,
+    wheelStr: document.getElementById('fWheelStr') ? document.getElementById('fWheelStr').value.trim() : '',
+    tags: document.getElementById('fTags') ? document.getElementById('fTags').value.trim() : '',
+    quantity: parseInt(document.getElementById('fQty').value)||0,
+    timeNote: document.getElementById('fTime').value.trim(),
+    rawNote: document.getElementById('fNote').value.trim(),
+    distanceKm: distKm,
+  });
 
   if (editingId) {
-    db.collection(COLLECTION).doc(editingId).update(data).then(() => {
+    supabase.from(COLLECTION).update(data).eq('id', editingId).then(() => {
       toast(`✅ แก้ไข "${name}" แล้ว (Cloud Sync)`, 'ok');
+    }).catch(err => {
+      console.error('[Supabase] Error updating job:', err.message, err.details);
+      toast('❌ ไม่สามารถแก้ไขงานได้: ' + err.message, 'err');
     });
   } else {
     const maxPri = jobs.length > 0 ? Math.max(...jobs.map(j => j.priority || 0)) : 0;
-    const newId = genId();
-    const fullData = { 
-      status:'pending', 
-      createdAt:new Date().toISOString(), 
-      completedAt:null, 
-      date:todayStr(), 
-      priority: maxPri + 1, 
-      ...data 
-    };
-    db.collection(COLLECTION).doc(newId).set(fullData).then(() => {
+    data.status = 'pending';
+    data.created_at = new Date().toISOString();
+    data.completed_at = null;
+    data.date = todayStr();
+    data.priority = maxPri + 1;
+    supabase.from(COLLECTION).insert([data]).then(() => {
       toast(`✅ เพิ่ม "${name}" แล้ว (Cloud Sync)`, 'ok');
+    }).catch(err => {
+      console.error('[Supabase] Error inserting job:', err.message, err.details);
+      toast('❌ ไม่สามารถเพิ่มงานได้: ' + err.message, 'err');
     });
   }
   closeEditModal();
+}
+
+function mapJobToDb(job) {
+  return {
+    id: job.id,
+    status: job.status,
+    customer_name: job.customer_name || job.customerName,
+    phone: job.phone,
+    location_raw: job.location_raw || job.locationRaw,
+    location_type: job.location_type || job.locationType,
+    price: job.price,
+    wheel_str: job.wheel_str || job.wheelStr,
+    wheel_sizes: job.wheelSizes ? JSON.stringify(job.wheelSizes) : null,
+    tags: job.tags,
+    quantity: job.quantity,
+    time_note: job.time_note || job.timeNote,
+    raw_note: job.raw_note || job.rawNote,
+    distance_km: job.distance_km || job.distanceKm,
+    created_at: job.created_at || job.createdAt,
+    completed_at: job.completed_at || job.completedAt,
+    date: job.date,
+    priority: job.priority,
+    postponed: job.postponed,
+    postpone_date: job.postpone_date || job.postponeDate
+  };
 }
 
 
@@ -975,20 +1016,22 @@ function closeExpenseModal() { document.getElementById('expenseModal').classList
 function saveExpense() {
   const name = document.getElementById('eName').value.trim();
   const amount = parseInt(document.getElementById('eAmount').value);
-  // Validate form inputs
   const validationErrors = validateExpenseForm();
   if (showValidationErrors(validationErrors)) return;
 
-  const newId = db.collection(EXP_COLLECTION).doc().id;
-  db.collection(EXP_COLLECTION).doc(newId).set({
+  supabase.from(EXP_COLLECTION).insert([{
+    id: genId(),
     name,
     amount,
     tags: document.getElementById('eTags').value.trim(),
-    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
     date: todayStr()
-  }).then(()=>{
+  }]).then(()=>{
     closeExpenseModal();
     toast('✅ บันทึกรายจ่ายแล้ว','ok');
+  }).catch(err => {
+    console.error('[Supabase] Error inserting expense:', err.message, err.details);
+    toast('❌ ไม่สามารถบันทึกรายจ่ายได้: ' + err.message, 'err');
   });
 }
 function deleteExpense(id) {
@@ -999,7 +1042,7 @@ function deleteExpense(id) {
   document.getElementById('confirmDlg').classList.remove('hidden');
 }
 function _doDeleteExpense(id) {
-  db.collection(EXP_COLLECTION).doc(id).delete().then(()=>toast('🗑️ ลบแล้ว','ok')).catch(()=>toast('❌ ลบไม่สำเร็จ','err'));
+  supabase.from(EXP_COLLECTION).delete().eq('id', id).then(()=>toast('🗑️ ลบแล้ว','ok')).catch(()=>toast('❌ ลบไม่สำเร็จ','err'));
 }
 
 // ── Tab navigation ────────────────────────────────────────────
@@ -1067,7 +1110,7 @@ function validateJobForm() {
   const errors = [];
   
   const name = document.getElementById('fName').value;
-  let err = VALIDATOR.customerName(name);
+  let err = VALIDATOR.customer_name(name);
   if (err) errors.push(err);
   
   const phone = document.getElementById('fPhone').value;
@@ -1172,19 +1215,28 @@ document.getElementById('cfOk').onclick=()=>{
 
 // ── Auto Cleanup & Export ─────────────────────────────────────
 function runAutoCleanup() {
-  const cutoff = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
-  
+  const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000); // 7 days ago
+  console.log('[AutoCleanup] Running... cutoff:', new Date(cutoff).toISOString());
+
+  let deletedJobs = 0;
   jobs.forEach(j => {
-    if (new Date(j.createdAt).getTime() < cutoff) {
-      db.collection(COLLECTION).doc(j.id).delete().catch(()=>{});
+    if (j.status === 'done' && new Date(j.created_at).getTime() < cutoff) {
+      supabase.from(COLLECTION).delete().eq('id', j.id)
+        .then(() => { deletedJobs++; console.log('[AutoCleanup] Deleted job:', j.id, j.customer_name); })
+        .catch(err => console.error('[AutoCleanup] Failed to delete job:', j.id, err));
     }
   });
 
+  let deletedExpenses = 0;
   expenses.forEach(e => {
-    if (new Date(e.createdAt).getTime() < cutoff) {
-      db.collection(EXP_COLLECTION).doc(e.id).delete().catch(()=>{});
+    if (new Date(e.created_at).getTime() < cutoff) {
+      supabase.from(EXP_COLLECTION).delete().eq('id', e.id)
+        .then(() => { deletedExpenses++; console.log('[AutoCleanup] Deleted expense:', e.id, e.name); })
+        .catch(err => console.error('[AutoCleanup] Failed to delete expense:', e.id, err));
     }
   });
+
+  console.log(`[AutoCleanup] Complete - jobs: ${deletedJobs}, expenses: ${deletedExpenses}`);
 }
 
 function exportToCSV() {
@@ -1199,32 +1251,32 @@ function exportToCSV() {
   jobs.forEach(j => {
     if(j.price) totalMoney += j.price;
     if(j.quantity) totalWheels += j.quantity;
-    let dt = new Date(j.createdAt);
+    let dt = new Date(j.created_at);
     // Format completedAt if available
     let completedStr = '';
-    if (j.completedAt) {
+    if (j.completed_at) {
       try {
-        const cd = new Date(j.completedAt);
+        const cd = new Date(j.completed_at);
         completedStr = cd.toLocaleDateString('th-TH') + ' ' + cd.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
-      } catch(_) { completedStr = j.completedAt; }
+      } catch(_) { completedStr = j.completed_at; }
     }
     // Format wheelSizes as readable string e.g. "17"×4, 18"×2"
     const wheelSizesStr = (j.wheelSizes && j.wheelSizes.length > 0)
       ? j.wheelSizes.map(ws => `${ws.size}"×${ws.qty}วง`).join(', ')
-      : (j.wheelStr || '');
+      : (j.wheel_str || '');
     let row = [
       "Job",
       dt.toLocaleDateString('th-TH'),
       dt.toLocaleTimeString('th-TH'),
       j.status,
       completedStr,
-      j.customerName,
+      j.customer_name,
       j.phone,
-      j.locationRaw,
+      j.location_raw,
       j.price,
       wheelSizesStr,
       j.quantity,
-      (j.timeNote || '') + ' ' + (j.rawNote || '').replace(/\n/g, ' '),
+      (j.time_note || '') + ' ' + (j.rawNote || '').replace(/\n/g, ' '),
       j.tags
     ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(",");
     csvContent += row + "\n";
@@ -1232,7 +1284,7 @@ function exportToCSV() {
 
   // Export Expenses
   expenses.forEach(e => {
-    let dt = new Date(e.createdAt);
+    let dt = new Date(e.created_at);
     let row = [
       "Expense",
       dt.toLocaleDateString('th-TH'),
@@ -1317,35 +1369,30 @@ function importBackup(input) {
 function doImportBackup() {
   const data = window.importData;
   if (!data) return;
-  
-  const batch = db.batch();
-  
-  // Clear existing data first (optional - depends on desired behavior)
-  // For safety, we'll just add/update instead of clearing
-  
-  // Import jobs
-  data.jobs.forEach(j => {
-    if (j.id) {
-      const ref = db.collection(COLLECTION).doc(j.id);
-      batch.set(ref, j);
-    }
-  });
-  
-  // Import expenses
-  (data.expenses || []).forEach(e => {
-    if (e.id) {
-      const ref = db.collection(EXP_COLLECTION).doc(e.id);
-      batch.set(ref, e);
-    }
-  });
-  
-  batch.commit().then(() => {
+
+  // Import jobs using Supabase upsert
+  if (data.jobs && data.jobs.length > 0) {
+    data.jobs.forEach(async j => {
+      if (j.id) {
+        await supabase.from(COLLECTION).upsert(j).catch(()=>{});
+      }
+    });
+  }
+
+  // Import expenses using Supabase upsert
+  if (data.expenses && data.expenses.length > 0) {
+    data.expenses.forEach(async e => {
+      if (e.id) {
+        await supabase.from(EXP_COLLECTION).upsert(e).catch(()=>{});
+      }
+    });
+  }
+
+  setTimeout(() => {
     toast('✅ กู้คืนข้อมูลสำเร็จ', 'ok');
     window.importData = null;
-  }).catch(err => {
-    toast('❌ กู้คืนล้มเหลว: ' + err.message, 'err');
-    console.error('Import commit error:', err);
-  });
+    loadJobs();
+  }, 1000);
 }
 
 // Close modals on overlay click
@@ -1362,21 +1409,21 @@ function openDetailModal(id) {
   const locIcon = LOC_ICON[j.locationType] || '📍';
   
   let rows = '';
-  rows += `<div class="detail-row"><div class="detail-label">ชื่อ</div><div class="detail-value" style="font-weight:700;font-size:16px;">${esc(j.customerName||'ไม่ระบุ')}</div></div>`;
+  rows += `<div class="detail-row"><div class="detail-label">ชื่อ</div><div class="detail-value" style="font-weight:700;font-size:16px;">${esc(j.customer_name||'ไม่ระบุ')}</div></div>`;
   if(j.phone) rows += `<div class="detail-row"><div class="detail-label">เบอร์โทร</div><div class="detail-value">${getPhones(j.phone).map(p=>`<a href="tel:${p}" style="color:#60a5fa;text-decoration:none;">${esc(p)}</a>`).join(', ')}</div></div>`;
-  if(j.locationRaw) rows += `<div class="detail-row"><div class="detail-label">${locIcon} พิกัด</div><div class="detail-value">${esc(j.locationRaw)}</div></div>`;
+  if(j.location_raw) rows += `<div class="detail-row"><div class="detail-label">${locIcon} พิกัด</div><div class="detail-value">${esc(j.location_raw)}</div></div>`;
   if(j.price) rows += `<div class="detail-row"><div class="detail-label">ราคา</div><div class="detail-value" style="color:#f87171;font-weight:600;">฿${j.price.toLocaleString('th-TH')}</div></div>`;
-  if(j.wheelStr) rows += `<div class="detail-row"><div class="detail-label">ล้อ</div><div class="detail-value">${esc(j.wheelStr)}</div></div>`;
+  if(j.wheel_str) rows += `<div class="detail-row"><div class="detail-label">ล้อ</div><div class="detail-value">${esc(j.wheel_str)}</div></div>`;
   if(j.quantity) rows += `<div class="detail-row"><div class="detail-label">จำนวน</div><div class="detail-value" style="color:#c4b5fd;font-weight:600;">${j.quantity} วง</div></div>`;
   if(j.tags) rows += `<div class="detail-row"><div class="detail-label">แท็ก</div><div class="detail-value">🏷️ ${esc(j.tags)}</div></div>`;
-  if(j.timeNote) rows += `<div class="detail-row"><div class="detail-label">เงื่อนไข</div><div class="detail-value" style="color:#fca5a5;">⏰ ${esc(j.timeNote)}</div></div>`;
-  if(j.distanceKm!=null) rows += `<div class="detail-row"><div class="detail-label">ระยะทาง</div><div class="detail-value" style="color:#93c5fd;">${j.distanceKm.toFixed(1)} กม. (${getETAText(j.distanceKm)})</div></div>`;
+  if(j.time_note) rows += `<div class="detail-row"><div class="detail-label">เงื่อนไข</div><div class="detail-value" style="color:#fca5a5;">⏰ ${esc(j.time_note)}</div></div>`;
+  if(j.distance_km!=null) rows += `<div class="detail-row"><div class="detail-label">ระยะทาง</div><div class="detail-value" style="color:#93c5fd;">${j.distance_km.toFixed(1)} กม. (${getETAText(j.distance_km)})</div></div>`;
   if(j.postponed) {
-    const dl = j.postponeDate ? new Date(j.postponeDate).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit'}) : 'ไม่มีกำหนด';
+    const dl = j.postpone_date ? new Date(j.postpone_date).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit'}) : 'ไม่มีกำหนด';
     rows += `<div class="detail-row"><div class="detail-label">เลื่อนนัด</div><div class="detail-value"><span class="postpone-tag">🔄 ${dl}</span></div></div>`;
   }
   if(j.rawNote) rows += `<div class="detail-row"><div class="detail-label">หมายเหตุ</div><div class="detail-value" style="font-size:12px;color:#334155;white-space:pre-wrap;">${esc(j.rawNote)}</div></div>`;
-  rows += `<div class="detail-row"><div class="detail-label">สร้างเมื่อ</div><div class="detail-value" style="font-size:12px;color:#6b7f99;">${new Date(j.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`;
+  rows += `<div class="detail-row"><div class="detail-label">สร้างเมื่อ</div><div class="detail-value" style="font-size:12px;color:#6b7f99;">${new Date(j.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`;
   
   document.getElementById('detailContent').innerHTML = rows;
   
@@ -1405,7 +1452,7 @@ function closeDetailModal() { document.getElementById('detailModal').classList.a
 function openPostponeModal(id) {
   const j = jobs.find(x=>x.id===id); if(!j) return;
   document.getElementById('postponeJobId').value = id;
-  document.getElementById('postponeJobName').textContent = `เลื่อนนัด "${j.customerName||'ไม่ระบุ'}"`;
+  document.getElementById('postponeJobName').textContent = `เลื่อนนัด "${j.customer_name||'ไม่ระบุ'}"`;
   document.getElementById('postponeDate').value = '';
   document.getElementById('postponeModal').classList.remove('hidden');
 }
@@ -1416,23 +1463,23 @@ function doPostpone(noDate) {
   if (!id) return;
   const dateVal = noDate ? null : document.getElementById('postponeDate').value;
   if (!noDate && !dateVal) { toast('กรุณาเลือกวันที่','err'); return; }
-  
+
   const j = jobs.find(x=>x.id===id);
-  db.collection(COLLECTION).doc(id).update({
+  supabase.from(COLLECTION).update({
     postponed: true,
-    postponeDate: dateVal || null
-  }).then(() => {
+    postpone_date: dateVal || null
+  }).eq('id', id).then(() => {
     closePostponeModal();
     const label = dateVal ? new Date(dateVal).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : 'ไม่มีกำหนด';
-    toast(`🔄 เลื่อนนัด "${j?j.customerName:''}" → ${label}`, 'info');
+    toast(`🔄 เลื่อนนัด "${j?j.customer_name:''}" → ${label}`, 'info');
   });
 }
 
 function undoPostpone(id) {
-  db.collection(COLLECTION).doc(id).update({
+  supabase.from(COLLECTION).update({
     postponed: false,
-    postponeDate: null
-  }).then(() => {
+    postpone_date: null
+  }).eq('id', id).then(() => {
     toast('↩️ คืนกลับเข้าคิวแล้ว', 'ok');
   });
 }
@@ -1477,8 +1524,8 @@ function runQueueParser() {
     for (const j of pendingJobs) {
       if (usedIds.has(j.id)) continue;
       
-      const locStr = norm(j.locationRaw);
-      const nameStr = norm(j.customerName);
+      const locStr = norm(j.location_raw);
+      const nameStr = norm(j.customer_name);
       const noteStr = norm(j.rawNote);
       
       let score = 0;
@@ -1526,8 +1573,8 @@ function runQueueParser() {
     <div class="parse-card ok">
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="badge">#${i+1}</span>
-        <span style="font-size:13px;font-weight:600;color:#0f172a;">${esc(j.customerName)}</span>
-        <span style="font-size:11px;color:#94a3b8;flex:1;text-align:right;">${esc((j.locationRaw||'').slice(0, 20))}</span>
+        <span style="font-size:13px;font-weight:600;color:#0f172a;">${esc(j.customer_name)}</span>
+        <span style="font-size:11px;color:#94a3b8;flex:1;text-align:right;">${esc((j.location_raw||'').slice(0, 20))}</span>
       </div>
     </div>
   `).join('');
@@ -1536,14 +1583,23 @@ function runQueueParser() {
 
 function saveFromQueueParser() {
   if (!queueParsedBuf.length) return;
-  const batch = db.batch();
-  queueParsedBuf.forEach((j, i) => {
-    const ref = db.collection(COLLECTION).doc(j.id);
-    batch.update(ref, { priority: i + 1 });
+  console.log('[QueueParser] Saving', queueParsedBuf.length, 'jobs with new priorities');
+  let failed = 0;
+  queueParsedBuf.forEach(async (j, i) => {
+    try {
+      await supabase.from(COLLECTION).update({ priority: i + 1 }).eq('id', j.id);
+    } catch(err) {
+      console.error('[QueueParser] Error updating priority:', j.id, err.message);
+      failed++;
+    }
   });
-  batch.commit().then(() => {
+  setTimeout(() => {
     closeQueueParserModal();
-    toast(`✅ จัดคิว ${queueParsedBuf.length} รายการแล้ว`, 'ok');
+    if (failed > 0) {
+      toast(`⚠️ จัดคิว ${queueParsedBuf.length - failed} รายการ, ล้มเหลว ${failed}`, 'warn');
+    } else {
+      toast(`✅ จัดคิว ${queueParsedBuf.length} รายการแล้ว`, 'ok');
+    }
     if (!isManualSort) {
       isManualSort = true;
       localStorage.setItem('logis_manualSort', 'true');
@@ -1553,7 +1609,7 @@ function saveFromQueueParser() {
       document.getElementById('sortLabel').style.color = '#60a5fa';
     }
     renderAll();
-  });
+  }, 500);
 }
 
 // ── Live timer (distance refresh every 60s) — managed inside init() ──────────
@@ -1587,4 +1643,128 @@ function saveFromQueueParser() {
 
   // Auto-request GPS on first visit
   if (!userLoc) setTimeout(requestLocation, 1200);
+
+  // Expose functions to global window AFTER init completes
+  window.toggleTheme = toggleTheme;
+  window.requestLocation = requestLocation;
+  window.openAddModal = openAddModal;
+  window.openParserModal = openParserModal;
+  window.openQueueParserModal = openQueueParserModal;
+  window.closeQueueParserModal = closeQueueParserModal;
+  window.runQueueParser = runQueueParser;
+  window.saveFromQueueParser = saveFromQueueParser;
+  window.exportToCSV = exportToCSV;
+  window.exportBackup = exportBackup;
+  window.setFilter = setFilter;
+  window.openExpenseModal = openExpenseModal;
+  window.switchTab = switchTab;
+  window.closeParserModal = closeParserModal;
+  window.runParser = runParser;
+  window.saveFromParser = saveFromParser;
+  window.closeEditModal = closeEditModal;
+  window.saveJob = saveJob;
+  window.closeExpenseModal = closeExpenseModal;
+  window.saveExpense = saveExpense;
+  window.closeDetailModal = closeDetailModal;
+  window.closePostponeModal = closePostponeModal;
+  window.doPostpone = doPostpone;
+  window.moveJob = moveJob;
+  window.openDetailModal = openDetailModal;
+  window.openPostponeModal = openPostponeModal;
+  window.completeJob = completeJob;
+  window.undoJob = undoJob;
+  window.undoPostpone = undoPostpone;
+  window.doConfirmDelete = doConfirmDelete;
+  window.openEditById = openEditById;
+  window.deleteExpense = deleteExpense;
+  window.updateLocTypeHint = updateLocTypeHint;
+  window.updateParsedLoc = updateParsedLoc;
+  window.toggleSortMode = toggleSortMode;
+
+  console.log('[app.js] All functions exposed successfully');
+  console.log('[app.js] switchTab:', typeof window.switchTab);
 })();
+
+// Legacy fallback - also expose immediately for safety
+window.toggleTheme = toggleTheme;
+window.requestLocation = requestLocation;
+window.openAddModal = openAddModal;
+window.openParserModal = openParserModal;
+window.switchTab = switchTab;
+window.setFilter = setFilter;
+window.openExpenseModal = openExpenseModal;
+window.toggleSortMode = toggleSortMode;
+window.completeJob = completeJob;
+window.undoJob = undoJob;
+window.undoPostpone = undoPostpone;
+window.openEditById = openEditById;
+window.saveJob = saveJob;
+window.closeEditModal = closeEditModal;
+window.saveExpense = saveExpense;
+window.closeExpenseModal = closeExpenseModal;
+window.openDetailModal = openDetailModal;
+window.closeDetailModal = closeDetailModal;
+window.doConfirmDelete = doConfirmDelete;
+window.deleteExpense = deleteExpense;
+window.openPostponeModal = openPostponeModal;
+window.closePostponeModal = closePostponeModal;
+window.doPostpone = doPostpone;
+window.moveJob = moveJob;
+window.updateLocTypeHint = updateLocTypeHint;
+window.updateParsedLoc = updateParsedLoc;
+window.openQueueParserModal = openQueueParserModal;
+window.closeQueueParserModal = closeQueueParserModal;
+window.runQueueParser = runQueueParser;
+window.saveFromQueueParser = saveFromQueueParser;
+window.exportToCSV = exportToCSV;
+window.exportBackup = exportBackup;
+window.runParser = runParser;
+window.saveFromParser = saveFromParser;
+window.closeParserModal = closeParserModal;
+
+console.log('[app.js] Legacy fallback exposed');
+window.toggleTheme = toggleTheme;
+window.requestLocation = requestLocation;
+window.openAddModal = openAddModal;
+window.openParserModal = openParserModal;
+window.openQueueParserModal = openQueueParserModal;
+window.closeQueueParserModal = closeQueueParserModal;
+window.runQueueParser = runQueueParser;
+window.saveFromQueueParser = saveFromQueueParser;
+window.exportToCSV = exportToCSV;
+window.exportBackup = exportBackup;
+window.setFilter = setFilter;
+window.openExpenseModal = openExpenseModal;
+window.switchTab = switchTab;
+window.closeParserModal = closeParserModal;
+window.runParser = runParser;
+window.saveFromParser = saveFromParser;
+window.closeEditModal = closeEditModal;
+window.saveJob = saveJob;
+window.closeExpenseModal = closeExpenseModal;
+window.saveExpense = saveExpense;
+window.closeDetailModal = closeDetailModal;
+window.closePostponeModal = closePostponeModal;
+window.doPostpone = doPostpone;
+window.moveJob = moveJob;
+window.openDetailModal = openDetailModal;
+window.openPostponeModal = openPostponeModal;
+window.completeJob = completeJob;
+window.undoJob = undoJob;
+window.undoPostpone = undoPostpone;
+window.doConfirmDelete = doConfirmDelete;
+window.openEditById = openEditById;
+window.deleteExpense = deleteExpense;
+window.updateLocTypeHint = updateLocTypeHint;
+window.updateParsedLoc = updateParsedLoc;
+window.toggleSortMode = toggleSortMode;
+
+console.log('[app.js] All functions exposed to window successfully');
+console.log('[app.js] switchTab available:', typeof window.switchTab);
+
+// Also expose functions when DOM is ready
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('[app.js] DOM ready');
+  });
+}

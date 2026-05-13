@@ -1,0 +1,50 @@
+-- Supabase Schema for Logis Master
+-- Run this in Supabase SQL Editor
+
+-- Jobs table (CREATE FIRST)
+CREATE TABLE IF NOT EXISTS jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  status TEXT NOT NULL DEFAULT 'pending',
+  customer_name TEXT NOT NULL,
+  phone TEXT,
+  location_raw TEXT,
+  location_type TEXT DEFAULT 'place',
+  price INTEGER DEFAULT 0,
+  wheel_str TEXT,
+  wheel_sizes JSONB,
+  tags TEXT,
+  quantity INTEGER DEFAULT 0,
+  time_note TEXT,
+  raw_note TEXT,
+  distance_km DOUBLE PRECISION,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  date TEXT,
+  priority INTEGER DEFAULT 0,
+  postponed BOOLEAN DEFAULT FALSE,
+  postpone_date TEXT
+);
+
+-- Expenses table (CREATE FIRST)
+CREATE TABLE IF NOT EXISTS expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  tags TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  date TEXT
+);
+
+-- Enable RLS (AFTER tables exist)
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Allow all access to jobs" ON jobs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_date ON jobs(date);
+CREATE INDEX IF NOT EXISTS idx_jobs_priority ON jobs(priority);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
