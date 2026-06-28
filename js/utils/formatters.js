@@ -10,7 +10,9 @@ export function esc(s) {
 
 export function getPhones(str) {
   if (!str) return [];
-  return str.split(/[\/, ]+/).filter(p => p.replace(/\D/g, '').length >= 9);
+  return str
+    .split(/[\\, /]+/)
+    .filter((p) => p.replace(/[^\d]/g, '').length >= 9);
 }
 
 export function todayStr() {
@@ -42,7 +44,7 @@ export function toast(msg, type = 'info') {
     ok: 'rgba(34,197,94,0.35)',
     err: 'rgba(239,68,68,0.35)',
     info: 'rgba(59,130,246,0.35)',
-    warn: 'rgba(249,115,22,0.35)'
+    warn: 'rgba(249,115,22,0.35)',
   };
   el.style.borderColor = bord[type] || bord.info;
   el.textContent = msg;
@@ -67,7 +69,7 @@ export function formatThaiDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'short',
-    year: '2-digit'
+    year: '2-digit',
   });
 }
 
@@ -77,6 +79,6 @@ export function formatThaiDateTime(dateStr) {
     month: 'long',
     year: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 }

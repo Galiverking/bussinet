@@ -1,8 +1,13 @@
-// Parser Extractor - Extract data from a block
+// Parser Extractor — Extract data from a block
 
 import { genId, todayStr } from '../../utils/formatters.js';
 import { classifyLoc, parseCoords, haversine } from '../location.js';
+import Store from '../../core/store.js';
 
+/**
+ * Thai address/order block → structured job object.
+ * Handles multiple formats: phone, name, address, time, coords, tyres, notes.
+ */
 export function extract(block) {
   const job = {
     id: genId(),
@@ -12,127 +17,100 @@ export function extract(block) {
     distance_km: null,
     priority: 0,
     quantity: 0,
-    wheelSizes: []
+    wheelSizes: [],
   };
+  let m;
 
-  // Customer name
-  let m = block.match(/ชื่อ(?:เฟส)?\s*[:：]\s*(.+)/i);
+  // ---- PHONE ----
+  // เบอร์/โทร/Tel/Phone + optional separator + 9-15 digits/spaces/dashes
+  m = block.match(/(?:เบอร์|โทร|Tel|Phone)\s*[:：]?\s*([\d\s-]{9,15})/i);
   if (m) {
-    job.customer_name = m[1].trim().split('\n')[0].trim();
+    job.phone = m[1].replace(/[^\d]/g, '').slice(0, 10);
   }
 
-  if (!job.customer_name) {
-    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (
-        !/^\d+\.พิกัด|โทร|ล้อ|ราคา|ชื่อ|ไม่เกิน|ก่อน|หลัง|รวม|\*\*/i.test(line) &&
-        !/^(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDDFF]){2,}/u.test(line)
-      ) {
-        job.customer_name = line.replace(/^[☀️🌞🌟\-\s#*0-9.]+/, '').trim().split('\n')[0].trim();
-        if (job.customer_name) break;
-      }
-    }
-  }
+  // ---- CUSTOMER NAME ----
+  // Accept patterns: ชื่อ/ลูกค้า/คุณ + name (2+ chars up to : or space-delimited)
+  m = block.match(
+    /(?:ชื่อ|ลูกค้า|คุณ)\s+([\p{L} .-]+?)[:\n]|^([\p{L} .-]{2,30})$/mu
+  );
+  if (m) job.customer_name = (m[1] || m[2] || '').trim();
 
-  // Phone with multi-number support
-  m = block.match(/(?:เบอร์|โทร|Tel|Phone)\s*[:：]?\s*([\d\s\-]{9,15})/i);
+  // ---- ADDRESS / LOCATION ----
+  // Find address lines: typically after name/phone, containing Thai chars + digits
+  m = block.match(
+    /(?:ที่อยู่|地址|Loc|l\.)\s*[:：]?\s*(.+?)[\n]|(?:[\p{L}].*?[ตอ].+?\d{2,})/i
+  );
   if (m) {
-    job.phone = m[1].replace(/\D/g, '').slice(0, 10);
-    const phoneArea = block.substring(block.indexOf(m[0]));
-    const lines = phoneArea.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length > 1) {
-      const secondLine = lines[1].replace(/\D/g, '');
-      if (/^0\d{8,9}$/.test(secondLine)) job.phone += '/' + secondLine;
-    }
+    const addr = (m[1] || m[0]).trim();
+    const loc = classifyLoc(addr);
+    job.location_raw = loc.raw;
+    job.location_type = loc.type;
+    job.coords = loc.coords || null;
   } else {
-    m = block.match(/(0[\d\s\-]{8,12})/);
-    if (m) job.phone = m[1].replace(/\D/g, '').slice(0, 10);
-  }
-
-  // Location
-  m =
-    block.match(/(?:\d+\.)?พิกัด\s*[:：]\s*(.+)/i) ||
-    block.match(/(?:ที่อยู่|สถานที่|Location|Maps?)\s*[:：]\s*(.+)/i);
-  if (m) {
-    job.location_raw = m[1].trim().split('\n')[0].trim();
-    job.location_type = classifyLoc(job.location_raw);
-  } else if (!job.customer_name) {
-    const first = block.split('\n')[0];
-    if (classifyLoc(first) !== 'place') {
-      job.location_raw = first.trim();
-      job.location_type = classifyLoc(job.location_raw);
+    // fallback: anything that looks like a location
+    const fallback = block.match(/(.+?)\s*\d{5,}/);
+    if (fallback) {
+      const loc = classifyLoc(fallback[1].trim());
+      job.location_raw = loc.raw;
+      job.location_type = loc.type;
+      job.coords = loc.coords || null;
     }
   }
 
-  // Wheel string + price
-  const wheelMatch = block.match(/ล้อ\s*[:：|]\s*(.+)/i);
-  if (wheelMatch) {
-    const wheelLine = wheelMatch[1].trim();
-    job.wheel_str = wheelLine
-      .replace(/ราคา[\s:]*[\d,]+(?:\s*(?:บ\.?|บาท))?/gi, '')
-      .replace(/[\d,]+\s*(?:บ\.|บาท)/gi, '')
-      .replace(/\*\*.+?\*\*/g, '')
-      .trim();
+  // ---- TIME NOTE ----
+  // เวลา/นัด/ถึง/ส่ง/after/before + time pattern
+  m = block.match(
+    /(?:เวลา|นัด|ถึง|ส่ง|after|before)\s*[:：]?\s*(\d{1,2}[.:]\d{2}(?:\s*[AP]M)?)/i
+  );
+  if (m) job.time_note = m[1];
 
-    // Total price **รวมX,XXXบาท**
-    const totalMatch = block.match(/\*\*\s*รวม\s*([\d,]+)\s*(?:บ\.?|บาท)?\s*\*\*/i);
-    if (totalMatch) {
-      job.price = parseInt(totalMatch[1].replace(/,/g, ''));
-    } else {
-      const priceM =
-        wheelLine.match(/ราคา\s*[:：]?\s*([\d,]+)/i) ||
-        wheelLine.match(/([\d,]+)\s*(?:บ\.|บาท)/i);
-      if (priceM) job.price = parseInt(priceM[1].replace(/,/g, ''));
-    }
-
-    // Multi-size wheel: parse each size group e.g. "17/4วง, 18/2วง"
-    const sizeGroups = wheelLine.matchAll(/(\d{2,3})\s*[x×\/\|\s]\s*(\d+)\s*วง/gi);
-    job.wheelSizes = [];
-    for (const sg of sizeGroups) {
-      job.wheelSizes.push({ size: parseInt(sg[1]), qty: parseInt(sg[2]) });
-    }
-
-    // Fallback quantity from wheel if wheelSizes not found
-    if (job.wheelSizes.length > 0) {
-      job.quantity = job.wheelSizes.reduce((sum, ws) => sum + ws.qty, 0);
-    } else {
-      const qtyMatches = wheelLine.match(/[\/|](\d+)\s*วง/gi);
-      if (qtyMatches) {
-        job.quantity = qtyMatches.reduce((sum, q) => sum + parseInt(q.match(/(\d+)/)[1]), 0);
-      }
-    }
+  // ---- TYRE/WHEEL SIZES ----
+  // Match patterns like "ยาง 185/65R15", "265/70R16", "4 เส้น 195/60R15"
+  const tyreRegex = /(\d{3})\/[-]?(\d{2,3})R?(\d{2,3})/g;
+  let match;
+  const sizes = [];
+  while ((match = tyreRegex.exec(block)) !== null) {
+    const width = parseInt(match[1], 10);
+    const profile = parseInt(match[2], 10);
+    const rim = parseInt(match[3], 10);
+    sizes.push({ width, profile, rim });
+  }
+  if (sizes.length) {
+    job.wheelSizes = sizes;
+    // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ"
+    const qtyMatch = block.match(/(\d+)\s*(?:เส้น|ชุด|ล้อ)/);
+    if (qtyMatch) job.quantity = parseInt(qtyMatch[1], 10);
   }
 
-  // Fallback price
-  if (!job.price) {
-    m = block.match(/ราคา\s*[:：]?\s*([\d,]+)/i) || block.match(/([\d,]+)\s*(?:บ\.|บาท)/i);
-    if (m) job.price = parseInt(m[1].replace(/,/g, ''));
-  }
-
-  // Fallback quantity
+  // ---- QUANTITY (explicit) ----
   if (!job.quantity) {
-    m = block.match(/(\d+)\s*(?:วง|ชิ้น|เส้น)/i) || block.match(/[x×\/|](\d+)\s*วง/i);
-    if (m) job.quantity = parseInt(m[1]);
+    m = block.match(/จำนวน\s*[:：]?\s*(\d+)/);
+    if (m) job.quantity = parseInt(m[1], 10);
   }
 
-  // Time note
-  m = block.match(/\*\*\s*(.+?)\s*\*\*/i);
-  if (m && !/^รวม/i.test(m[1])) {
-    job.time_note = m[1].trim().slice(0, 50);
-  }
+  // ---- PRIORITY ----
+  m = block.match(/(?:ด่วน|รีบ|เร่ง|priority)\s*[:：]?\s*(\d+)/i);
+  if (m) job.priority = Math.min(5, Math.max(0, parseInt(m[1], 10)));
+
+  // ---- NOTE / REMARK ----
+  m = block.match(/(?:หมายเหตุ|note|remark)\s*[:：]?\s*(.+)/i);
+  if (m) job.note = m[1].trim().slice(0, 200);
+
+  // ---- TIME NOTE (alt pattern) ----
   if (!job.time_note) {
-    m = block.match(/((?:ก่อน|หลัง|ไม่เกิน|ภายใน|ตั้งแต่|ช่วง|เวลา|นัด|รอ|ประมาณ|ถึง).{2,40})/i);
-    if (m) job.time_note = m[1].replace(/\*/g, '').trim().slice(0, 50);
+    m = block.match(/(\d{1,2}[.:]\d{2})\s*(?:น\.|น|โมง)/);
+    if (m) job.time_note = m[1].replace(/[*]+/g, '').trim().slice(0, 50);
   }
 
   job.raw_note = block;
 
-  // Calculate distance if coords and user location available
+  // ---- DISTANCE (if coords + user location available) ----
   if (job.location_type === 'coords') {
     const userLoc = Store.get('userLoc');
     if (userLoc) {
       const c = parseCoords(job.location_raw);
-      if (c) job.distance_km = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
+      if (c)
+        job.distance_km = haversine(userLoc.lat, userLoc.lng, c.lat, c.lng);
     }
   }
 

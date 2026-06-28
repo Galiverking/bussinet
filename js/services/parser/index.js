@@ -9,25 +9,26 @@ import { normalizeThaiNumber } from '../location.js';
 
 export function parseText(text) {
   const tokens = tokenize(text);
-  const extracted = tokens.map(block => extract(block));
+  const extracted = tokens.map((block) => extract(block));
   const validated = validateBatch(extracted);
 
   // Filter only valid jobs
-  return validated
-    .filter(v => v.isValid)
-    .map(v => v.job);
+  return validated.filter((v) => v.isValid).map((v) => v.job);
 }
 
 export function parseBlocks(blocks) {
-  const extracted = blocks.map(block => extract(block));
+  const extracted = blocks.map((block) => extract(block));
   const validated = validateBatch(extracted);
-  return validated.filter(v => v.isValid).map(v => v.job);
+  return validated.filter((v) => v.isValid).map((v) => v.job);
 }
 
 // Queue parser - match text lines to existing jobs
 export function parseQueue(text, existingJobs) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const pendingJobs = existingJobs.filter(j => j.status === 'pending');
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const pendingJobs = existingJobs.filter((j) => j.status === 'pending');
   const matchedJobs = [];
   const usedIds = new Set();
 
@@ -47,9 +48,15 @@ export function parseQueue(text, existingJobs) {
       const noteStr = normalizeThaiNumber(j.rawNote);
 
       let score = 0;
-      if (locStr.includes(searchStr) || (searchStr.includes(locStr) && locStr.length > 3)) {
+      if (
+        locStr.includes(searchStr) ||
+        (searchStr.includes(locStr) && locStr.length > 3)
+      ) {
         score = 10;
-      } else if (nameStr.includes(searchStr) || (searchStr.includes(nameStr) && nameStr.length > 2)) {
+      } else if (
+        nameStr.includes(searchStr) ||
+        (searchStr.includes(nameStr) && nameStr.length > 2)
+      ) {
         score = 8;
       } else if (noteStr.includes(searchStr)) {
         score = 7;
@@ -88,5 +95,5 @@ export function parseQueue(text, existingJobs) {
 export default {
   parseText,
   parseBlocks,
-  parseQueue
+  parseQueue,
 };

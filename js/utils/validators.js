@@ -44,7 +44,7 @@ export const VALIDATOR = {
     if (!v) return null;
     if (v.length > 500) return 'ที่อยู่ยาวเกินไป';
     return null;
-  }
+  },
 };
 
 export function validateJobForm() {
@@ -82,7 +82,8 @@ export function validateExpenseForm() {
 
   const name = document.getElementById('eName').value;
   if (!name || name.trim().length === 0) errors.push('กรุณากรอกชื่อรายจ่าย');
-  if (name && name.trim().length > 100) errors.push('ชื่อต้องไม่เกิน 100 ตัวอักษร');
+  if (name && name.trim().length > 100)
+    errors.push('ชื่อต้องไม่เกิน 100 ตัวอักษร');
 
   const amount = document.getElementById('eAmount').value;
   const err = VALIDATOR.price(amount);

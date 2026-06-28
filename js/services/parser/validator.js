@@ -22,10 +22,10 @@ export function validate(job) {
   return {
     isValid: errors.length === 0,
     errors,
-    job
+    job,
   };
 }
 
 export function validateBatch(jobs) {
-  return jobs.map(job => validate(job));
+  return jobs.map((job) => validate(job));
 }

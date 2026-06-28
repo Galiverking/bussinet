@@ -1,7 +1,7 @@
--- Supabase Schema for Logis Master
+-- Supabase Schema for Logis Master v2
 -- Run this in Supabase SQL Editor
 
--- Jobs table (CREATE FIRST)
+-- Jobs table
 CREATE TABLE IF NOT EXISTS jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   status TEXT NOT NULL DEFAULT 'pending',
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   postpone_date TEXT
 );
 
--- Expenses table (CREATE FIRST)
+-- Expenses table
 CREATE TABLE IF NOT EXISTS expenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -35,15 +35,53 @@ CREATE TABLE IF NOT EXISTS expenses (
   date TEXT
 );
 
--- Enable RLS (AFTER tables exist)
+-- RLS — REQUIRES ANONYMOUS AUTH ENABLED IN SUPABASE DASHBOARD
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
-CREATE POLICY "Allow all access to jobs" ON jobs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
+-- Drop old permissive policies (safe to run even if they don't exist)
+DROP POLICY IF EXISTS "Allow all access to jobs" ON jobs;
+DROP POLICY IF EXISTS "Allow all access to expenses" ON expenses;
 
--- Create indexes
+-- Jobs policies — authenticated users only (anonymous auth handles session)
+CREATE POLICY "Authenticated users can read jobs" 
+  ON jobs FOR SELECT 
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can insert jobs" 
+  ON jobs FOR INSERT 
+  WITH CHECK (auth.role() = 'authenticated' 
+    AND customer_name IS NOT NULL 
+    AND length(customer_name) > 0);
+
+CREATE POLICY "Authenticated users can update jobs" 
+  ON jobs FOR UPDATE 
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can delete jobs" 
+  ON jobs FOR DELETE 
+  USING (auth.role() = 'authenticated');
+
+-- Expenses policies
+CREATE POLICY "Authenticated users can read expenses" 
+  ON expenses FOR SELECT 
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can insert expenses" 
+  ON expenses FOR INSERT 
+  WITH CHECK (auth.role() = 'authenticated' 
+    AND name IS NOT NULL 
+    AND length(name) > 0);
+
+CREATE POLICY "Authenticated users can update expenses" 
+  ON expenses FOR UPDATE 
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can delete expenses" 
+  ON expenses FOR DELETE 
+  USING (auth.role() = 'authenticated');
+
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_date ON jobs(date);
 CREATE INDEX IF NOT EXISTS idx_jobs_priority ON jobs(priority);

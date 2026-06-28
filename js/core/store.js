@@ -1,5 +1,7 @@
 // State management store - single source of truth
 
+import Logger from '../utils/logger.js';
+
 const Store = {
   _state: {
     jobs: [],
@@ -11,7 +13,7 @@ const Store = {
     queueParsedBuf: [],
     manFilter: 'all',
     delTargetId: null,
-    isManualSort: false
+    isManualSort: false,
   },
   _listeners: [],
 
@@ -32,12 +34,12 @@ const Store = {
   subscribe(fn) {
     this._listeners.push(fn);
     return () => {
-      this._listeners = this._listeners.filter(f => f !== fn);
+      this._listeners = this._listeners.filter((f) => f !== fn);
     };
   },
 
   _notify(key, value, oldValue) {
-    this._listeners.forEach(fn => {
+    this._listeners.forEach((fn) => {
       fn(key, value, oldValue);
     });
   },
@@ -72,9 +74,9 @@ const Store = {
         this._state.isManualSort = savedSort === 'true';
       }
     } catch (e) {
-      console.warn('[Store] Error loading from storage:', e);
+      Logger.warn('Store', 'Error loading from storage:', e);
     }
-  }
+  },
 };
 
 export default Store;

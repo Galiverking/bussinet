@@ -1,9 +1,16 @@
 // Location service - GPS, distance calculation, location classification
 
-import { AVG_SPEED_KMH, LS_LOC, LOC_TYPE, AVG_WORK_MINS } from '../core/constants.js';
+import {
+  AVG_SPEED_KMH,
+  LS_LOC,
+  LOC_TYPE,
+  AVG_WORK_MINS,
+  THAI_NUMBERS,
+} from '../core/constants.js';
 import Store from '../core/store.js';
 import { toast } from '../utils/formatters.js';
 import { updateJobDistance } from './supabase.js';
+import Logger from '../utils/logger.js';
 
 let gpsLoading = false;
 let lastGpsRequest = 0;
@@ -11,11 +18,13 @@ let lastGpsRequest = 0;
 // Haversine formula for distance calculation
 export function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -91,7 +100,8 @@ export function classifyLoc(raw) {
 
 // Build Google Maps URL
 export function buildMapsUrl(job) {
-  if (!job.location_raw || job.locationType === LOC_TYPE.PLACEHOLDER) return null;
+  if (!job.location_raw || job.locationType === LOC_TYPE.PLACEHOLDER)
+    return null;
 
   let url;
   switch (job.locationType) {
@@ -137,21 +147,25 @@ export function requestLocation() {
   toast('กำลังหาตำแหน่ง…', 'info');
 
   navigator.geolocation.getCurrentPosition(
-    pos => {
+    (pos) => {
       const userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       Store.set('userLoc', userLoc);
       localStorage.setItem(LS_LOC, JSON.stringify(userLoc));
-      console.log('[GPS] Location updated:', userLoc);
+      Logger.info('GPS', 'Location updated:', userLoc);
 
       refreshDistances();
       if (btn) btn.style.borderColor = 'rgba(34,197,94,0.5)';
       toast('✓ อัปเดตตำแหน่งแล้ว', 'ok');
       gpsLoading = false;
     },
-    err => {
-      console.error('[GPS] Error:', err.code, err.message);
+    (err) => {
+      Logger.error('GPS', 'Error:', err.code, err.message);
       if (btn) btn.style.borderColor = 'rgba(255,255,255,0.08)';
-      toast('ไม่สามารถเข้าถึง GPS: ' + (err.code === 1 ? 'ถูกปฏิเสธ' : 'ไม่พบตำแหน่ง'), 'err');
+      toast(
+        'ไม่สามารถเข้าถึง GPS: ' +
+          (err.code === 1 ? 'ถูกปฏิเสธ' : 'ไม่พบตำแหน่ง'),
+        'err'
+      );
       gpsLoading = false;
     },
     { enableHighAccuracy: true, timeout: 10000 }
@@ -167,7 +181,8 @@ export function calcETAClocks(pendingJobs) {
     if (i > 0) {
       const prev = pendingJobs[i - 1];
       if (prev.distance_km != null && j.distance_km != null) {
-        const distBetween = Math.abs(j.distance_km - prev.distance_km) || j.distance_km;
+        const distBetween =
+          Math.abs(j.distance_km - prev.distance_km) || j.distance_km;
         cumMins += Math.ceil((distBetween / AVG_SPEED_KMH) * 60);
       } else if (j.distance_km != null) {
         cumMins += Math.ceil((j.distance_km / AVG_SPEED_KMH) * 60);
@@ -188,7 +203,7 @@ export function calcETAClocks(pendingJobs) {
 
 // Normalize Thai numbers to Arabic
 export function normalizeThaiNumber(str) {
-  let result = (str || '').toLowerCase().replace(/[\s\(\)]+/g, '');
+  let result = (str || '').toLowerCase().replace(/[\s()]+/g, '');
   for (const k in THAI_NUMBERS) {
     result = result.replace(new RegExp(k, 'g'), THAI_NUMBERS[k]);
   }
