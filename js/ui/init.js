@@ -100,10 +100,12 @@ function initApp() {
   }
 
   // Load data (includes realtime subscription setup)
-  Supabase.loadJobs().catch((err) => {
+  try {
+    Supabase.loadJobs();
+  } catch (err) {
     Logger.error('app', 'Error loading jobs:', err.message);
     Formatters.toast('⚠️ ไม่สามารถโหลดข้อมูลได้', 'err');
-  });
+  }
 
   // Request location
   Location.requestLocation();

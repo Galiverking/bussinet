@@ -10,9 +10,15 @@ export const VALIDATOR = {
 
   phone(v) {
     if (!v) return null;
-    const cleaned = v.replace(/\D/g, '');
-    if (cleaned.length > 0 && cleaned.length < 9) return 'เบอร์โทรไม่ถูกต้อง';
-    if (cleaned.length > 12) return 'เบอร์โทรยาวเกินไป';
+    // Split multiple numbers by comma, slash, semicolon
+    // (space/dash inside a single number is allowed formatting)
+    const parts = v.split(/[,;/]+/).map(p => p.trim()).filter(Boolean);
+    for (const part of parts) {
+      const cleaned = part.replace(/\D/g, '');
+      if (cleaned.length === 0) continue;
+      if (cleaned.length < 9) return 'เบอร์โทรไม่ถูกต้อง';
+      if (cleaned.length > 12) return 'เบอร์โทรยาวเกินไป';
+    }
     return null;
   },
 

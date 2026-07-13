@@ -47,6 +47,31 @@ describe('VALIDATOR.phone()', () => {
   it('accepts 10-digit phone', () => {
     expect(VALIDATOR.phone('0812345678')).toBeNull();
   });
+
+  // ── Multi-phone (Scenario 4) ─────────────────────────────────────
+  it('accepts multi-phone comma separated', () => {
+    expect(VALIDATOR.phone('0812345678, 0898765432')).toBeNull();
+  });
+
+  it('accepts multi-phone slash separated', () => {
+    expect(VALIDATOR.phone('0812345678 / 0898765432')).toBeNull();
+  });
+
+  it('accepts multi-phone with mixed format', () => {
+    expect(VALIDATOR.phone('081-234-5678, 089-876-5432')).toBeNull();
+  });
+
+  it('rejects if any part is too short', () => {
+    expect(VALIDATOR.phone('0812345678, 123')).toBe('เบอร์โทรไม่ถูกต้อง');
+  });
+
+  it('rejects if any part is too long', () => {
+    expect(VALIDATOR.phone('0812345678, 1234567890123')).toBe('เบอร์โทรยาวเกินไป');
+  });
+
+  it('accepts separators-only string as empty', () => {
+    expect(VALIDATOR.phone(', / ;')).toBeNull();
+  });
 });
 
 // ─── VALIDATOR.price ──────────────────────────────────────────────
