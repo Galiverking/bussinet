@@ -127,11 +127,13 @@ export function extract(block) {
     } else {
       // "2 วงพร้อมยาง", "2ชุดราคา" — no size given, just quantity
       // [FIX 2026-07-19] ใช้ (?<![\d]) กันจับท้ายเบอร์โทร
+      // [FIX 2026-07-19] 1 ชุด = 4 วง → แปลงชุดเป็นวงก่อนนับ
       const qm = block.match(/(?<![\d])\d{1,3}\s*(?:วง|ชุด)(?:\s*พร้อมยาง|\s*ราคา)?/);
       if (qm) {
-        const num = qm[0].replace(/\D/g, '');
-        job.quantity = parseInt(num, 10);
-        job.wheel_str = `${num} วง`;
+        const num = parseInt(qm[0].replace(/\D/g, ''), 10);
+        const isSet = /ชุด/.test(qm[0]);
+        job.quantity = isSet ? num * 4 : num;
+        job.wheel_str = `${job.quantity} วง`;
       }
     }
   }
@@ -144,7 +146,11 @@ export function extract(block) {
     // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
     // [FIX 2026-07-19] ใช้ (?<![\d]) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
     const qtyMatch = block.match(/(?<![\d])\d{1,3}\s*(?:เส้น|ชุด|ล้อ|วง)/);
-    if (qtyMatch) job.quantity = parseInt(qtyMatch[0].replace(/\D/g, ''), 10);
+    if (qtyMatch) {
+      const num = parseInt(qtyMatch[0].replace(/\D/g, ''), 10);
+      // [FIX 2026-07-19] 1 ชุด = 4 วง
+      job.quantity = /ชุด/.test(qtyMatch[0]) ? num * 4 : num;
+    }
   }
 
   // ---- PRICE ----
