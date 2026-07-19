@@ -1,4 +1,7 @@
 // Parser Extractor — Extract data from a block
+// TEMP PATCH (2026-07-19): added พิกัด (coords) and ชื่อเฟส (customer) capture
+// to handle teacher data where records are 1-blank-line separated and use
+// "พิกัด ..." / "ชื่อเฟส ..." instead of "ที่อยู่"/"ชื่อ".
 
 import { genId, todayStr } from '../../utils/formatters.js';
 import { classifyLoc, parseCoords, haversine } from '../location.js';
@@ -29,31 +32,51 @@ export function extract(block) {
   }
 
   // ---- CUSTOMER NAME ----
-  // Accept patterns: ชื่อ/ลูกค้า/คุณ + name (2+ chars up to : or space-delimited)
+  // Accept patterns: ชื่อเฟส/ลูกค้า/คุณ/ชื่อ/เฟส + name
+  // (TEMP) handles "ชื่อเฟสมานี" (no space) and "ชื่อเฟส มานี".
+  // \p{M} included for Thai combining vowels (ี ู ์ etc.)
   m = block.match(
-    /(?:ชื่อ|ลูกค้า|คุณ)\s+([\p{L} .-]+?)[:\n]|^([\p{L} .-]{2,30})$/mu
+    /(?:ชื่อเฟส|ลูกค้า|คุณ|ชื่อ|เฟส)\s*[:：]?\s*([\p{L}\p{M} .-]{2,30})|^([\p{L}\p{M} .-]{2,30})$/mu
   );
   if (m) job.customer_name = (m[1] || m[2] || '').trim();
 
-  // ---- ADDRESS / LOCATION ----
-  // Find address lines: typically after name/phone, containing Thai chars + digits
+  // ---- COORDS (พิกัด) ----
+  // (TEMP) capture "พิกัด 13.7563, 100.5018" before the address heuristic
   m = block.match(
-    /(?:ที่อยู่|地址|Loc|l\.)\s*[:：]?\s*(.+?)[\n]|(?:[\p{L}].*?[ตอ].+?\d{2,})/i
+    /(?:พิกัด|coord|gps|location)\s*[:：]?\s*(-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+)/i
   );
   if (m) {
-    const addr = (m[1] || m[0]).trim();
-    const loc = classifyLoc(addr);
-    job.location_raw = loc.raw;
-    job.location_type = loc.type;
-    job.coords = loc.coords || null;
-  } else {
-    // fallback: anything that looks like a location
-    const fallback = block.match(/(.+?)\s*\d{5,}/);
-    if (fallback) {
-      const loc = classifyLoc(fallback[1].trim());
+    const c = m[1].replace(/\s+/g, ''); // "13.7563,100.5018"
+    const pc = parseCoords(c);
+    if (pc) {
+      job.location_raw = c;
+      job.location_type = 'coords';
+      job.coords = pc;
+    }
+  }
+
+  // ---- ADDRESS / LOCATION ----
+  // Find address lines: typically after name/phone, containing Thai chars + digits
+  // (skip if coords already resolved)
+  if (!job.location_type || job.location_type !== 'coords') {
+    m = block.match(
+      /(?:ที่อยู่|地址|Loc|l\.)[ ]*[:：]?\s*(.+?)[\n]|(?:[\p{L}].*?[ตอ].+?\d{2,})/i
+    );
+    if (m) {
+      const addr = (m[1] || m[0]).trim();
+      const loc = classifyLoc(addr);
       job.location_raw = loc.raw;
       job.location_type = loc.type;
       job.coords = loc.coords || null;
+    } else {
+      // fallback: anything that looks like a location
+      const fallback = block.match(/(.+?)\s*\d{5,}/);
+      if (fallback) {
+        const loc = classifyLoc(fallback[1].trim());
+        job.location_raw = loc.raw;
+        job.location_type = loc.type;
+        job.coords = loc.coords || null;
+      }
     }
   }
 
@@ -78,7 +101,9 @@ export function extract(block) {
   if (sizes.length) {
     job.wheelSizes = sizes;
     // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ"
-    const qtyMatch = block.match(/(\d+)\s*(?:เส้น|ชุด|ล้อ)/);
+    // (TEMP) use [ \t]* not \s* so it cannot span across newlines
+    // and grab the phone number by accident
+    const qtyMatch = block.match(/(\d+)[ \t]*(?:เส้น|ชุด|ล้อ)/);
     if (qtyMatch) job.quantity = parseInt(qtyMatch[1], 10);
   }
 
