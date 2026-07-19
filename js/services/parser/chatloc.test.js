@@ -34,6 +34,23 @@ describe('chat location detection', () => {
     expect(j.locationType).toBe('placeholder');
   });
 
+  it('extracts address BEFORE paren for "พิกัด : X (โลเคชั่นทางช่องแชท)"', () => {
+    const text = `3.พิกัด : บ้านแพ้ว อำเภอบ้านแพ้ว สมุทรสาคร(โลเคชั่นทางช่องแชท)
+
+โทร :0910422412 
+
+ล้อ :2 วงพร้อมยางราคา1,400บ.
+
+ชื่อเฟส : Pai`;
+    const j = extract(text);
+    expect(j.locationType).toBe('placeholder');
+    expect(j.location_raw).toBe('บ้านแพ้ว อำเภอบ้านแพ้ว สมุทรสาคร (โลเคชั่นทางแชท)');
+    expect(isChatLocPending(j)).toBe(true);
+    expect(j.customer_name).toBe('Pai');
+    expect(j.phone).toBe('0910422412');
+    expect(j.price).toBe(1400);
+  });
+
   it('buildMapsUrl returns null for placeholder without override', () => {
     const j = { locationType: 'placeholder', location_raw: 'x (โลเคชั่นทางแชท)', loc_override: null };
     expect(buildMapsUrl(j)).toBeNull();

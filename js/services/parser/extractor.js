@@ -85,9 +85,17 @@ export function extract(block) {
   if (!job.location_raw) {
     const chatLoc = block.match(/(?:โลเคชั่นทาง(?:ช่อง)?แชท|location|พิกัด(?:จาก)?(?:ช่อง)?แชท|ส่งพิกัด|ตำแหน่งจากแชท)/i);
     if (chatLoc) {
-      // หาข้อความพิกัดดิบที่อาจอยู่ติดมา (เช่น ชื่อสถานที่ หรือพิกัดกึ่งกลาง)
-      const rawMatch = block.match(/(?:โลเคชั่นทาง(?:ช่อง)?แชท|location)[^\n]*?([\p{L}\d\s./,-]{3,60})/i);
-      const raw = rawMatch ? rawMatch[1].trim() : 'พิกัดจากแชท';
+      // กรณีที่ 1: ข้อความพิกัดอยู่ข้างหน้าวงเล็บ → "บ้านแพ้ว... (โลเคชั่นทางช่องแชท)"
+      const parenMatch = block.match(/([^()\n]{3,100})\s*\((?:โลเคชั่นทาง(?:ช่อง)?แชท)\)/iu);
+      // กรณีที่ 2: ข้อความพิกัดอยู่ต่อท้ายคำแชท → "โลเคชั่นทางแชท หน้าร้านวัลลภ"
+      const rawMatch = block.match(/(?:โลเคชั่นทาง(?:ช่อง)?แชท|location)[^\n]*?([\p{L}\d\s./,-]{3,60})/iu);
+      let raw = parenMatch
+        ? parenMatch[1].trim()
+        : rawMatch
+          ? rawMatch[1].trim()
+          : 'พิกัดจากแชท';
+      // ตัดคำนำ "พิกัด :" / "พิกัด:" ออกให้เหลือแค่ชื่อสถานที่
+      raw = raw.replace(/^(?:\d*\.?\s*)?พิกัด\s*[:：]\s*/i, '').trim();
       job.location_raw = raw + ' (โลเคชั่นทางแชท)';
       job.locationType = 'placeholder';
       job.coords = null;
