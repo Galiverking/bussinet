@@ -60,13 +60,16 @@ describe('classifyLoc()', () => {
   let classifyLoc;
   beforeEach(async () => { vi.resetModules(); classifyLoc = (await import('./location.js')).classifyLoc; });
 
-  it('classifies GPS coordinates', () => expect(classifyLoc('13.7563, 100.5018')).toBe('coords'));
-  it('classifies Google Maps URL', () => expect(classifyLoc('https://maps.google.com/?q=13.75,100.5')).toBe('url'));
-  it('classifies maps.app.goo.gl', () => expect(classifyLoc('https://maps.app.goo.gl/abc123')).toBe('url'));
-  it('classifies chat placeholder', () => expect(classifyLoc('ช่องแชท')).toBe('placeholder'));
-  it('classifies ทางไลน์ as placeholder', () => expect(classifyLoc('ทางไลน์')).toBe('placeholder'));
-  it('classifies plain text as place', () => expect(classifyLoc('123 ถ.สุขุมวิท')).toBe('place'));
-  it('returns place for empty/null', () => { expect(classifyLoc('')).toBe('place'); expect(classifyLoc(null)).toBe('place'); });
+  it('classifies GPS coordinates', () => expect(classifyLoc('13.7563, 100.5018').type).toBe('coords'));
+  it('classifies Google Maps URL', () => expect(classifyLoc('https://maps.google.com/?q=13.75,100.5').type).toBe('url'));
+  it('classifies maps.app.goo.gl', () => expect(classifyLoc('https://maps.app.goo.gl/abc123').type).toBe('url'));
+  it('classifies chat placeholder', () => expect(classifyLoc('ช่องแชท').type).toBe('placeholder'));
+  it('classifies ทางไลน์ as placeholder', () => expect(classifyLoc('ทางไลน์').type).toBe('placeholder'));
+  it('classifies plain text as place', () => expect(classifyLoc('123 ถ.สุขุมวิท').type).toBe('place'));
+  it('returns place for empty/null', () => {
+    expect(classifyLoc('').type).toBe('place');
+    expect(classifyLoc(null).type).toBe('place');
+  });
 });
 
 describe('buildMapsUrl()', () => {

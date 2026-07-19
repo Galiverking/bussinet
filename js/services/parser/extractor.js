@@ -57,8 +57,23 @@ export function extract(block) {
 
   // ---- ADDRESS / LOCATION ----
   // Find address lines: typically after name/phone, containing Thai chars + digits
-  // (skip if coords already resolved)
+  // (skip entirely if Case B already resolved a location)
+  if (!job.location_raw) {
+
+  // Case B (teacher): "พิกัด : <text address>" or "1.พิกัด : <addr>"
   if (!job.location_type || job.location_type !== 'coords') {
+    const pm = block.match(
+      /\d*\.?\s*พิกัด\s*[:：]\s*([^\n]+(?:\n(?!โทร|ล้อ|ชื่อเฟส|ชื่อ)[^\n]+)*)/i
+    );
+    if (pm) {
+      const loc = classifyLoc(pm[1].trim());
+      job.location_raw = loc.raw;
+      job.location_type = loc.type;
+      job.coords = loc.coords || null;
+    }
+  }
+
+  if (!job.location_raw) {
     m = block.match(
       /(?:ที่อยู่|地址|Loc|l\.)[ ]*[:：]?\s*(.+?)[\n]|(?:[\p{L}].*?[ตอ].+?\d{2,})/i
     );
@@ -79,6 +94,7 @@ export function extract(block) {
       }
     }
   }
+}
 
   // ---- TIME NOTE ----
   // เวลา/นัด/ถึง/ส่ง/after/before + time pattern
@@ -88,7 +104,7 @@ export function extract(block) {
   if (m) job.time_note = m[1];
 
   // ---- TYRE/WHEEL SIZES ----
-  // Match patterns like "ยาง 185/65R15", "265/70R16", "4 เส้น 195/60R15"
+  // Pattern 1: standard "185/65R15" (with R)
   const tyreRegex = /(\d{3})\/[-]?(\d{2,3})R?(\d{2,3})/g;
   let match;
   const sizes = [];
@@ -98,13 +114,45 @@ export function extract(block) {
     const rim = parseInt(match[3], 10);
     sizes.push({ width, profile, rim });
   }
+
+  // Pattern 2 (teacher): "18/4 วงราคา", "2 วงพร้อมยาง", "2ชุดราคา"
+  if (sizes.length === 0) {
+    const tw = block.match(/(\d{1,2})\/(\d{1,2})\s*(?:วง|ชุด)?\s*(?:พร้อมยาง|ราคา|ล้อ)/);
+    if (tw) {
+      sizes.push({
+        width: parseInt(tw[1], 10),
+        profile: parseInt(tw[2], 10),
+        rim: 0,
+      });
+    } else {
+      // "2 วงพร้อมยาง", "2ชุดราคา" — no size given, just quantity
+      const qm = block.match(/(\d+)\s*(?:วง|ชุด)(?:\s*พร้อมยาง|\s*ราคา)?/);
+      if (qm) {
+        job.quantity = parseInt(qm[1], 10);
+        job.wheel_str = `${qm[1]} วง`;
+      }
+    }
+  }
   if (sizes.length) {
     job.wheelSizes = sizes;
-    // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ"
-    // (TEMP) use [ \t]* not \s* so it cannot span across newlines
-    // and grab the phone number by accident
-    const qtyMatch = block.match(/(\d+)[ \t]*(?:เส้น|ชุด|ล้อ)/);
+    // Build human-readable wheel string: "18/4 วง" etc.
+    job.wheel_str = sizes
+      .map((s) => (s.rim ? `${s.width}/${s.profile}R${s.rim}` : `${s.width}/${s.profile}`))
+      .join(', ');
+    // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
+    const qtyMatch = block.match(/(\d+)\s*(?:เส้น|ชุด|ล้อ|วง)/);
     if (qtyMatch) job.quantity = parseInt(qtyMatch[1], 10);
+  }
+
+  // ---- PRICE ----
+  // "ราคา 2,600บาท", "1,400บ.", "5,000 บาท"
+  m = block.match(/ราคา\s*[:：]?\s*([\d,]+)\s*(?:บาท|บ\.?|฿)?/i);
+  if (m) {
+    job.price = parseInt(m[1].replace(/,/g, ''), 10);
+  } else {
+    // fallback: number near "บาท"/"บ."
+    m = block.match(/([\d,]+)\s*(?:บาท|บ\.?|฿)/i);
+    if (m) job.price = parseInt(m[1].replace(/,/g, ''), 10);
   }
 
   // ---- QUANTITY (explicit) ----

@@ -74,12 +74,12 @@ export function getETAText(distKm) {
 
 // Location type classifier
 export function classifyLoc(raw) {
-  if (!raw) return LOC_TYPE.PLACE;
-  const t = raw.trim();
+  const t = (raw || '').trim();
+  if (!t) return { raw: '', type: LOC_TYPE.PLACE, coords: null };
 
   // Placeholder check (Thai phrases)
   if (/(?:ช่องแชท|ทางไลน์|ทักแชท|ส่งให้ในแชท|ทางข้อความ|ส่งในแชท)/i.test(t)) {
-    return LOC_TYPE.PLACEHOLDER;
+    return { raw: t, type: LOC_TYPE.PLACEHOLDER, coords: null };
   }
 
   // URL check
@@ -87,15 +87,17 @@ export function classifyLoc(raw) {
     /^https?:\/\//i.test(t) ||
     /maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.|google\.com\/maps/i.test(t)
   ) {
-    return LOC_TYPE.URL;
+    return { raw: t, type: LOC_TYPE.URL, coords: null };
   }
 
   // GPS coords: two decimal numbers separated by comma
-  if (/^-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+$/.test(t)) {
-    return LOC_TYPE.COORDS;
+  const cm = t.match(/^(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/);
+  if (cm) {
+    const c = parseCoords(`${cm[1]},${cm[2]}`);
+    return { raw: t, type: LOC_TYPE.COORDS, coords: c };
   }
 
-  return LOC_TYPE.PLACE;
+  return { raw: t, type: LOC_TYPE.PLACE, coords: null };
 }
 
 // Build Google Maps URL
