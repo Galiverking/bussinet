@@ -506,6 +506,15 @@ export function closeQueueParserModal() {
   Store.set('queueParsedBuf', []);
 }
 
+// Close every modal at once (used by backdrop click + ESC)
+export function closeAll() {
+  ['parserModal', 'editModal', 'detailModal', 'postponeModal',
+   'expenseModal', 'queueParserModal', 'confirmDlg'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+}
+
 export function runQueueParser() {
   const raw = document.getElementById('queueInput').value.trim();
   if (!raw) {

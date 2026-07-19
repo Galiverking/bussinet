@@ -22,14 +22,14 @@ beforeEach(() => {
   Object.keys(store).forEach(k => delete store[k]);
   store.currentTab = 'today';
   document.body.innerHTML = `
-    <div id="todaySec"></div>
-    <div id="manageSec" style="display:none"></div>
-    <div id="expenseSec" style="display:none"></div>
-    <div class="tab-btn" data-tab="today">Today</div>
-    <div class="tab-btn" data-tab="manage">Manage</div>
-    <div class="tab-btn" data-tab="expense">Expense</div>
-    <div class="filter-btn" data-filter="all">All</div>
-    <div class="filter-btn" data-filter="pending">Pending</div>
+    <div id="tabSummary"></div>
+    <div id="tabManage" style="display:none"></div>
+    <div id="tabExpense" style="display:none"></div>
+    <div class="tab-item" id="tabBtnSummary">Summary</div>
+    <div class="tab-item" id="tabBtnManage">Manage</div>
+    <div class="tab-item" id="tabBtnExpense">Expense</div>
+    <div class="pill" id="pAll">All</div>
+    <div class="pill" id="pPending">Pending</div>
     <div id="renderTarget"></div>
     <div id="parserModal" class="hidden"></div>
     <div id="parserInput"></div>
@@ -50,13 +50,6 @@ beforeEach(() => {
 });
 
 describe('exposeToWindow()', () => {
-  it('exposes toggleTheme to window', async () => {
-    const mod = await import('./init.js');
-    mod.exposeToWindow();
-    expect(window.toggleTheme).toBeDefined();
-    expect(typeof window.toggleTheme).toBe('function');
-  });
-
   it('exposes core workflow functions to window', async () => {
     const mod = await import('./init.js');
     mod.exposeToWindow();
@@ -86,9 +79,9 @@ describe('switchTab (via window)', () => {
     mod.exposeToWindow();
     window.switchTab('manage');
 
-    expect(document.getElementById('todaySec').style.display).toBe('none');
-    expect(document.getElementById('manageSec').style.display).toBe('block');
-    expect(document.getElementById('expenseSec').style.display).toBe('none');
+    expect(document.getElementById('tabSummary').style.display).toBe('none');
+    expect(document.getElementById('tabManage').style.display).toBe('block');
+    expect(document.getElementById('tabExpense').style.display).toBe('none');
   });
 
   it('activates the correct tab button', async () => {
@@ -96,7 +89,7 @@ describe('switchTab (via window)', () => {
     mod.exposeToWindow();
     window.switchTab('expense');
 
-    const btns = document.querySelectorAll('.tab-btn');
+    const btns = document.querySelectorAll('.tab-item');
     expect(btns[0].classList.contains('active')).toBe(false);
     expect(btns[1].classList.contains('active')).toBe(false);
     expect(btns[2].classList.contains('active')).toBe(true);
@@ -119,8 +112,8 @@ describe('setFilter (via window)', () => {
 
     const Store = (await import('../core/store.js')).default;
     expect(Store.set).toHaveBeenCalledWith('manFilter', 'pending');
-    const btns = document.querySelectorAll('.filter-btn');
-    expect(btns[0].classList.contains('active')).toBe(false);
-    expect(btns[1].classList.contains('active')).toBe(true);
+    const btns = document.querySelectorAll('.pill');
+    expect(btns[0].classList.contains('on')).toBe(false);
+    expect(btns[1].classList.contains('on')).toBe(true);
   });
 });

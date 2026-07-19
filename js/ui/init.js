@@ -1,11 +1,15 @@
 // ==================== INIT MODULE ====================
-import { Store } from '../core/store.js';
-import { Renderer } from './renderer.js';
-import { Actions } from './actions.js';
-import { Theme } from './theme.js';
-import { Modals } from './modals.js';
-import { Supabase } from '../services/supabase.js';
+import Store from '../core/store.js';
+import * as Renderer from './renderer.js';
+import * as Actions from './actions.js';
+import * as Theme from './theme.js';
+import * as Modals from './modals.js';
+import * as Supabase from '../services/supabase.js';
 import { Logger } from '../utils/logger.js';
+import * as Formatters from '../utils/formatters.js';
+
+// Module-scoped element refs (shared across init functions)
+let sortToggle = null;
 
 // ==================== EVENT BINDINGS ====================
 function initEventBindings() {
@@ -15,22 +19,22 @@ function initEventBindings() {
 
   // Add job button
   const btnAddJob = document.getElementById('btnAddJob');
-  if (btnAddJob) btnAddJob.addEventListener('click', () => Modals.openAddJob());
+  if (btnAddJob) btnAddJob.addEventListener('click', () => Modals.openAddModal());
 
   // Paste button
   const btnPaste = document.getElementById('btnPaste');
-  if (btnPaste) btnPaste.addEventListener('click', () => Modals.openPasteJobs());
+  if (btnPaste) btnPaste.addEventListener('click', () => Modals.openParserModal());
 
   // Search/filter input in manage tab
   const queueInput = document.getElementById('queueInput');
-  if (queueInput) queueInput.addEventListener('input', () => Renderer.renderManage());
+  if (queueInput) queueInput.addEventListener('input', () => Renderer.renderAll());
 
   // Sort toggle
-  const sortToggle = document.getElementById('sortToggle');
+  sortToggle = document.getElementById('sortToggle');
   if (sortToggle) sortToggle.addEventListener('click', () => {
     const mode = Store.get('sortMode') === 'manual' ? 'time' : 'manual';
     Store.set('sortMode', mode);
-    Renderer.renderManage();
+    Renderer.renderAll();
   });
 
   // Modal close on backdrop click
@@ -47,7 +51,7 @@ function initEventBindings() {
 
   // Expense tab inputs
   const btnAddExpense = document.getElementById('btnAddExpense');
-  if (btnAddExpense) btnAddExpense.addEventListener('click', () => Modals.openAddExpense());
+  if (btnAddExpense) btnAddExpense.addEventListener('click', () => Modals.openExpenseModal());
 
   // Import/export backup
   const btnExport = document.getElementById('btnExport');
@@ -107,24 +111,46 @@ function initApp() {
 }
 
 // ==================== EXPOSE TO WINDOW ====================
-function exposeToWindow() {
+export function exposeToWindow() {
   // Actions
   window.completeJob = Actions.completeJob;
   window.undoJob = Actions.undoJob;
   window.moveJob = Actions.moveJob;
   window.deleteJob = Actions.deleteJob;
   window.openPostponeModal = Modals.openPostponeModal;
-  window.undoPostpone = Actions.undoPostpone;
-  window.openDetailById = Modals.openDetailById;
+  window.undoPostpone = Modals.undoPostpone;
+  window.openDetailById = Modals.openDetailModal;
   window.closeDetailModal = Modals.closeDetailModal;
   window.doConfirmDelete = Actions.doConfirmDelete;
   window.openEditById = Modals.openEditById;
-  window.deleteExpense = Actions.deleteExpense;
+  window.deleteExpense = Modals.deleteExpense;
   window.exportBackup = Actions.exportBackup;
   window.importBackup = Actions.importBackup;
+  window.exportToCSV = Actions.exportToCSV;
+  window.toggleSortMode = Actions.toggleSortMode;
+
+  // Modals (needed by inline HTML handlers)
+  window.openAddModal = Modals.openAddModal;
+  window.openParserModal = Modals.openParserModal;
+  window.closeParserModal = Modals.closeParserModal;
+  window.runParser = Modals.runParser;
+  window.saveJob = Modals.saveJob;
+  window.openExpenseModal = Modals.openExpenseModal;
+  window.saveExpense = Modals.saveExpense;
+  window.closeExpenseModal = Modals.closeExpenseModal;
+  window.openQueueParserModal = Modals.openQueueParserModal;
+  window.runQueueParser = Modals.runQueueParser;
+  window.saveFromQueueParser = Modals.saveFromQueueParser;
+  window.closeQueueParserModal = Modals.closeQueueParserModal;
+  window.updateParsedLoc = Modals.updateParsedLoc;
+  window.updateLocTypeHint = Modals.updateLocTypeHint;
+  window.closeAll = Modals.closeAll;
+
+  // Theme
+  window.toggleTheme = Theme.toggleTheme;
 
   // Rendering (needed by inline HTML handlers)
-  window.renderManage = Renderer.renderManage;
+  window.renderManage = Renderer.renderAll;
 
   // Other
   window.setFilter = setFilter;
@@ -169,8 +195,8 @@ Store.subscribe((key, value) => {
   }
 });
 
-// ==================== MAIN BOOT ====================
-async function boot() {
+// ==================== MAIN BOOT ===================
+export async function boot() {
   Logger.info('app', 'Booting Logis Master...');
   Theme.initTheme();
   initEventBindings();
@@ -181,4 +207,5 @@ async function boot() {
   Logger.info('app', 'Boot complete');
 }
 
-boot();
+// NOTE: boot() is invoked by js/app.js — do NOT auto-run here
+// (auto-running caused double-boot in the browser + broke test imports)
