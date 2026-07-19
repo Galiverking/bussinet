@@ -190,5 +190,18 @@ export function extract(block) {
     }
   }
 
+  // [LOG 2026-07-19] รายงาน field ที่ได้ vs หาย (debug วิเคราะห์เพี้ยน)
+  const REQUIRED = ['phone', 'customer_name', 'location_raw', 'wheel_str', 'price'];
+  const missing = REQUIRED.filter((k) => !job[k]);
+  console.log(
+    `[EXTRACT] ${job.customer_name || '?(no-name)'} | ` +
+      `phone=${job.phone || '❌'} name=${job.customer_name || '❌'} ` +
+      `loc=${job.location_raw ? '✓' : '❌'} wheel=${job.wheel_str || '❌'} ` +
+      `qty=${job.quantity ?? '❌'} price=${job.price ?? '❌'}`
+  );
+  if (missing.length) {
+    console.warn(`[EXTRACT] ⚠ block missing: ${missing.join(', ')} | raw="${block.slice(0, 50).replace(/\n/g, '⏎')}…"`);
+  }
+
   return job;
 }

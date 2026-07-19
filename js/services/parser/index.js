@@ -1,4 +1,5 @@
 // Parser Service - Main entry point
+// [LOG 2026-07-19] เพิ่ม console.log trace การทำงาน pipeline
 
 import { tokenize } from './tokenizer.js';
 import { extract } from './extractor.js';
@@ -8,18 +9,29 @@ import Store from '../../core/store.js';
 import { normalizeThaiNumber } from '../location.js';
 
 export function parseText(text) {
+  console.log('[PARSER] parseText() called');
   const tokens = tokenize(text);
   const extracted = tokens.map((block) => extract(block));
   const validated = validateBatch(extracted);
 
+  const valid = validated.filter((v) => v.isValid).map((v) => v.job);
+  const invalid = validated.filter((v) => !v.isValid);
+  console.log(`[PARSER] extracted=${extracted.length} valid=${valid.length} invalid=${invalid.length}`);
+  invalid.forEach((v, i) => {
+    console.warn(`[PARSER] ⚠ invalid job#${i + 1}: ${v.errors?.join(', ') || 'unknown'}`);
+  });
+
   // Filter only valid jobs
-  return validated.filter((v) => v.isValid).map((v) => v.job);
+  return valid;
 }
 
 export function parseBlocks(blocks) {
+  console.log(`[PARSER] parseBlocks() called with ${blocks.length} block(s)`);
   const extracted = blocks.map((block) => extract(block));
   const validated = validateBatch(extracted);
-  return validated.filter((v) => v.isValid).map((v) => v.job);
+  const valid = validated.filter((v) => v.isValid).map((v) => v.job);
+  console.log(`[PARSER] → valid=${valid.length}`);
+  return valid;
 }
 
 // Queue parser - match text lines to existing jobs

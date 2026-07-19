@@ -60,6 +60,25 @@ function initEventBindings() {
   const btnImport = document.getElementById('btnImport');
   if (btnImport) btnImport.addEventListener('click', () => Actions.importBackup());
 
+  // [FIX 2026-07-19] Bind ปุ่มลบเลย/ยกเลิก ใน confirmDlg
+  // ก่อนหน้านี้ #cfOk/#cfCancel ไม่มี event listener → กดลบ/ยกเลิกไม่ได้
+  const cfOk = document.getElementById('cfOk');
+  if (cfOk) {
+    cfOk.addEventListener('click', () => {
+      const id = Store.get('delTargetId');
+      if (id) Actions.deleteJob(id);
+      document.getElementById('confirmDlg').classList.add('hidden');
+      Store.set('delTargetId', null);
+    });
+  }
+  const cfCancel = document.getElementById('cfCancel');
+  if (cfCancel) {
+    cfCancel.addEventListener('click', () => {
+      document.getElementById('confirmDlg').classList.add('hidden');
+      Store.set('delTargetId', null);
+    });
+  }
+
   Logger.info('init', 'Event bindings initialized');
 }
 
