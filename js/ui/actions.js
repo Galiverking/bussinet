@@ -7,11 +7,25 @@ import * as Supabase from '../services/supabase.js';
 import Logger from '../utils/logger.js';
 import { renderAll, getSorted } from './renderer.js';
 
+// [FIX 2026-07-19] Optimistic update: แก้ Store local ทันทีแล้ว render
+// ไม่ต้องรอ Supabase Realtime → UI อัปเดตทันทีหลังกดเสร็จ/ลบ/เลื่อน
+function updateLocalJob(id, patch) {
+  const jobs = Store.get('jobs') || [];
+  const idx = jobs.findIndex((x) => x.id === id);
+  if (idx === -1) return;
+  jobs[idx] = { ...jobs[idx], ...patch };
+  Store.set('jobs', jobs);
+  renderAll();
+}
+
 // ==================== JOB ACTIONS ====================
 export async function completeJob(id) {
   const jobs = Store.get('jobs') || [];
   const j = jobs.find((x) => x.id === id);
   if (!j) return;
+
+  // [FIX 2026-07-19] Optimistic update ทันที
+  updateLocalJob(id, { status: 'done', completed_at: new Date().toISOString() });
 
   await Supabase.completeJob(id);
   Formatters.toast(`✅ "${j.customer_name}" เสร็จแล้ว`, 'ok');
@@ -21,6 +35,9 @@ export async function undoJob(id) {
   const jobs = Store.get('jobs') || [];
   const j = jobs.find((x) => x.id === id);
   if (!j) return;
+
+  // [FIX 2026-07-19] Optimistic update ทันที
+  updateLocalJob(id, { status: 'pending', completed_at: null });
 
   await Supabase.undoJob(id).catch((err) => {
     Logger.error('Supabase', 'Error undo job:', err.message);
@@ -45,6 +62,11 @@ async function deleteJob(id) {
   const jobs = Store.get('jobs') || [];
   const j = jobs.find((x) => x.id === id);
   if (!j) return;
+
+  // [FIX 2026-07-19] Optimistic update ทันที (ลบออกจาก Store local)
+  const filtered = jobs.filter((x) => x.id !== id);
+  Store.set('jobs', filtered);
+  renderAll();
 
   await Supabase.deleteJob(id).catch((err) => {
     Logger.error('Supabase', 'Error deleting job:', err.message);

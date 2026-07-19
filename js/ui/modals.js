@@ -272,6 +272,14 @@ export function saveJob() {
 
   const editingId = Store.get('editingId');
   if (editingId) {
+    // [FIX 2026-07-19] Optimistic update ทันที
+    const jobs = Store.get('jobs') || [];
+    const idx = jobs.findIndex((x) => x.id === editingId);
+    if (idx !== -1) {
+      jobs[idx] = { ...jobs[idx], ...data };
+      Store.set('jobs', jobs);
+      renderAll();
+    }
     Supabase.updateJob(editingId, data)
       .then(() => {
         Formatters.toast(`✅ แก้ไข "${name}" แล้ว (Cloud Sync)`, 'ok');
@@ -286,6 +294,12 @@ export function saveJob() {
         Formatters.toast('❌ ไม่สามารถแก้ไขงานได้: ' + err.message, 'err');
       });
   } else {
+    // [FIX 2026-07-19] Optimistic insert ทันที (id ชั่วคราว รอ realtime แทนที่)
+    const tmpId = 'tmp_' + Date.now();
+    const jobs = Store.get('jobs') || [];
+    jobs.unshift({ ...data, id: tmpId, status: 'pending', postponed: false });
+    Store.set('jobs', jobs);
+    renderAll();
     Supabase.insertJob(data)
       .then(() => {
         Formatters.toast(`✅ เพิ่ม "${name}" แล้ว (Cloud Sync)`, 'ok');
@@ -478,6 +492,13 @@ export async function doPostpone(noDate) {
 
   await Supabase.postponeJob(id, dateVal);
   closePostponeModal();
+  // [FIX 2026-07-19] Optimistic update ทันที
+  const idx = jobs.findIndex((x) => x.id === id);
+  if (idx !== -1) {
+    jobs[idx] = { ...jobs[idx], postponed: true, postpone_until: dateVal };
+    Store.set('jobs', jobs);
+    renderAll();
+  }
   const label = dateVal
     ? new Date(dateVal).toLocaleDateString('th-TH', {
         day: 'numeric',
@@ -491,6 +512,14 @@ export async function doPostpone(noDate) {
 }
 
 export async function undoPostpone(id) {
+  // [FIX 2026-07-19] Optimistic update ทันที
+  const jobs = Store.get('jobs') || [];
+  const idx = jobs.findIndex((x) => x.id === id);
+  if (idx !== -1) {
+    jobs[idx] = { ...jobs[idx], postponed: false, postpone_until: null };
+    Store.set('jobs', jobs);
+    renderAll();
+  }
   await Supabase.undoPostpone(id);
   Formatters.toast('↩️ คืนกลับเข้าคิวแล้ว', 'ok');
 }
