@@ -62,22 +62,34 @@ function initEventBindings() {
 
   // [FIX 2026-07-19] Bind ปุ่มลบเลย/ยกเลิก ใน confirmDlg
   // ก่อนหน้านี้ #cfOk/#cfCancel ไม่มี event listener → กดลบ/ยกเลิกไม่ได้
-  const cfOk = document.getElementById('cfOk');
-  if (cfOk) {
-    cfOk.addEventListener('click', () => {
-      const id = Store.get('delTargetId');
-      if (id) Actions.deleteJob(id);
-      document.getElementById('confirmDlg').classList.add('hidden');
-      Store.set('delTargetId', null);
-    });
+  function bindConfirmDlg() {
+    const cfOk = document.getElementById('cfOk');
+    if (cfOk) {
+      cfOk.textContent = 'ลบเลย';
+      // ลบ onclick แบบเก่า (จาก promptNavigate) แล้วใช้ addEventListener
+      cfOk.onclick = null;
+      cfOk.onclick = () => {
+        const id = Store.get('delTargetId');
+        if (id) Actions.deleteJob(id);
+        document.getElementById('confirmDlg').classList.add('hidden');
+        Store.set('delTargetId', null);
+      };
+    }
+    const cfCancel = document.getElementById('cfCancel');
+    if (cfCancel) {
+      cfCancel.textContent = 'ยกเลิก';
+      cfCancel.onclick = null;
+      cfCancel.onclick = () => {
+        document.getElementById('confirmDlg').classList.add('hidden');
+        Store.set('delTargetId', null);
+      };
+    }
   }
-  const cfCancel = document.getElementById('cfCancel');
-  if (cfCancel) {
-    cfCancel.addEventListener('click', () => {
-      document.getElementById('confirmDlg').classList.add('hidden');
-      Store.set('delTargetId', null);
-    });
-  }
+  bindConfirmDlg();
+
+  // [FEAT 2026-07-19] promptNavigate ดัดแปลงปุ่ม confirmDlg ชั่วคราว
+  // เมื่อปิด dialog นี้ → bind ปุ่มลบ/ยกเลิกกลับคืน
+  document.addEventListener('chatNavClosed', () => bindConfirmDlg());
 
   Logger.info('init', 'Event bindings initialized');
 }
@@ -142,6 +154,8 @@ export function exposeToWindow() {
   window.closePostponeModal = Modals.closePostponeModal;
   window.doPostpone = Modals.doPostpone;
   window.openDetailModal = Modals.openDetailModal;
+  window.promptNavigate = Modals.promptNavigate;
+  window.saveLocOverride = Modals.saveLocOverride;
   window.openDetailById = Modals.openDetailModal;
   window.closeDetailModal = Modals.closeDetailModal;
   window.doConfirmDelete = Actions.doConfirmDelete;

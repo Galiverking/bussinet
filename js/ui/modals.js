@@ -257,6 +257,9 @@ export function saveJob() {
     phone: document.getElementById('fPhone').value.trim(),
     location_raw: locRaw,
     location_type: locType,
+    loc_override:
+      (Store.get('jobs') || []).find((x) => x.id === Store.get('editingId'))?.loc_override ||
+      null,
     price: parseInt(document.getElementById('fPrice').value) || 0,
     wheel_str: document.getElementById('fWheelStr')
       ? document.getElementById('fWheelStr').value.trim()
@@ -460,6 +463,89 @@ export function openDetailModal(id) {
 
 export function closeDetailModal() {
   document.getElementById('detailModal').classList.add('hidden');
+}
+
+// ==================== CHAT LOCATION OVERRIDE ====================
+// [FEAT 2026-07-19] พิกัดจากแชท/ไลน์ ที่ยังไม่มีลิงก์ → กดนำทางแล้วเตือนเลือก 2 ทาง
+export function promptNavigate(id) {
+  const jobs = Store.get('jobs') || [];
+  const j = jobs.find((x) => x.id === id);
+  if (!j) return;
+
+  // ถ้ามีลิงก์แล้ว → เปิดเลย
+  if (j.loc_override && /^https?:\/\//i.test(j.loc_override)) {
+    window.open(j.loc_override, '_blank', 'noopener');
+    return;
+  }
+
+  // เตือนเลือก 2 ทาง
+  Store.set('navTargetId', id);
+  document.getElementById('cfTitle').textContent = '📍 นำทางพิกัดจากแชท';
+  document.getElementById('cfMsg').innerHTML =
+    `พบพิกัดแบบ "โลเคชั่นทางแชท/ไลน์" ที่ยังไม่มีลิงก์แผนที่<br><br>` +
+    `เลือกวิธีนำทาง:`;
+  // เปลี่ยนปุ่มให้เป็น 2 ทาง
+  const ok = document.getElementById('cfOk');
+  const cancel = document.getElementById('cfCancel');
+  if (ok) {
+    ok.textContent = 'มีลิงก์แชท/ไลน์';
+    ok.onclick = () => {
+      closeChatNavDialog();
+      // โฟกัสช่องใส่ลิงก์ในการ์ด
+      const inp = document.getElementById('locOv_' + id);
+      if (inp) {
+        inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        inp.focus();
+      } else {
+        openEditById(id); // เปิดแก้ไขถ้าไม่เจอช่องในการ์ด
+      }
+    };
+  }
+  if (cancel) {
+    cancel.textContent = 'กดต่อไป (ใช้ข้อมูลดิบ)';
+    cancel.onclick = () => {
+      closeChatNavDialog();
+      // นำทางโดยใช้ location_raw ดิบแบบ place search
+      const raw = (j.location_raw || '').replace(/\(โลเคชั่นทางแชท\)/g, '').trim();
+      const url = `https://maps.google.com/?q=${encodeURIComponent(raw)}`;
+      window.open(url, '_blank', 'noopener');
+    };
+  }
+  document.getElementById('confirmDlg').classList.remove('hidden');
+}
+
+function closeChatNavDialog() {
+  document.getElementById('confirmDlg').classList.add('hidden');
+  document.getElementById('cfOk').textContent = 'ลบเลย';
+  document.getElementById('cfCancel').textContent = 'ยกเลิก';
+  // คืน onclick ให้ทำงานเหมือนเดิม (ผูกใหม่ผ่าน init)
+  delete document.getElementById('cfOk').onclick;
+  delete document.getElementById('cfCancel').onclick;
+  Store.set('navTargetId', null);
+  // trigger re-bind ผ่าน custom event
+  document.dispatchEvent(new Event('chatNavClosed'));
+}
+
+export function saveLocOverride(id, url) {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    Formatters.toast('❌ กรุณาใส่ลิงก์ที่ถูกต้อง (http/https)', 'err');
+    return;
+  }
+  const jobs = Store.get('jobs') || [];
+  const idx = jobs.findIndex((x) => x.id === id);
+  if (idx === -1) return;
+
+  // [FEAT 2026-07-19] Optimistic update
+  jobs[idx] = { ...jobs[idx], loc_override: url, location_type: 'url' };
+  Store.set('jobs', jobs);
+  renderAll();
+
+  Supabase.updateJob(id, { loc_override: url, location_type: 'url' })
+    .then(() => Formatters.toast('✅ บันึกลิงก์พิกัดแล้ว', 'ok'))
+    .catch((err) => {
+      Logger.error('Supabase', 'Error saving loc_override:', err.message);
+      Formatters.toast('❌ บันทึกลิงก์ไม่สำเร็จ: ' + err.message, 'err');
+    });
 }
 
 // ==================== POSTPONE MODAL ====================

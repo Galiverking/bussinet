@@ -50,8 +50,21 @@ export function extract(block) {
     const pc = parseCoords(c);
     if (pc) {
       job.location_raw = c;
-      job.location_type = 'coords';
+      job.locationType = 'coords';
       job.coords = pc;
+    }
+  }
+
+  // [FEAT 2026-07-19] ตรวจจับพิกัดจากแชท/ไลน์ ("โลเคชั่นทางแชท")
+  if (!job.location_raw) {
+    const chatLoc = block.match(/(?:โลเคชั่นทางแชท|location|พิกัด(?:จาก)?แชท|ส่งพิกัด|ตำแหน่งจากแชท)/i);
+    if (chatLoc) {
+      // หาข้อความพิกัดดิบที่อาจอยู่ติดมา (เช่น ชื่อสถานที่ หรือพิกัดกึ่งกลาง)
+      const rawMatch = block.match(/(?:โลเคชั่นทางแชท|location)[^\n]*?([\p{L}\d\s./,-]{3,60})/i);
+      const raw = rawMatch ? rawMatch[1].trim() : 'พิกัดจากแชท';
+      job.location_raw = raw + ' (โลเคชั่นทางแชท)';
+      job.locationType = 'placeholder';
+      job.coords = null;
     }
   }
 
@@ -61,14 +74,14 @@ export function extract(block) {
   if (!job.location_raw) {
 
   // Case B (teacher): "พิกัด : <text address>" or "1.พิกัด : <addr>"
-  if (!job.location_type || job.location_type !== 'coords') {
+  if (!job.locationType || job.locationType !== 'coords') {
     const pm = block.match(
       /\d*\.?\s*พิกัด\s*[:：]\s*([^\n]+(?:\n(?!โทร|ล้อ|ชื่อเฟส|ชื่อ)[^\n]+)*)/i
     );
     if (pm) {
       const loc = classifyLoc(pm[1].trim());
       job.location_raw = loc.raw;
-      job.location_type = loc.type;
+      job.locationType = loc.type;
       job.coords = loc.coords || null;
     }
   }
@@ -81,7 +94,7 @@ export function extract(block) {
       const addr = (m[1] || m[0]).trim();
       const loc = classifyLoc(addr);
       job.location_raw = loc.raw;
-      job.location_type = loc.type;
+      job.locationType = loc.type;
       job.coords = loc.coords || null;
     } else {
       // fallback: anything that looks like a location
@@ -89,7 +102,7 @@ export function extract(block) {
       if (fallback) {
         const loc = classifyLoc(fallback[1].trim());
         job.location_raw = loc.raw;
-        job.location_type = loc.type;
+        job.locationType = loc.type;
         job.coords = loc.coords || null;
       }
     }
@@ -187,7 +200,7 @@ export function extract(block) {
   job.raw_note = block;
 
   // ---- DISTANCE (if coords + user location available) ----
-  if (job.location_type === 'coords') {
+  if (job.locationType === 'coords') {
     const userLoc = Store.get('userLoc');
     if (userLoc) {
       const c = parseCoords(job.location_raw);

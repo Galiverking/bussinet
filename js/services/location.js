@@ -102,6 +102,13 @@ export function classifyLoc(raw) {
 
 // Build Google Maps URL
 export function buildMapsUrl(job) {
+  if (!job) return null;
+
+  // [FEAT 2026-07-19] ใช้ลิงก์ที่ผู้ใช้ระบุแทนพิกัดแชท (loc_override)
+  if (job.loc_override && /^https?:\/\//i.test(job.loc_override)) {
+    return job.loc_override;
+  }
+
   if (!job.location_raw || job.locationType === LOC_TYPE.PLACEHOLDER)
     return null;
 
@@ -122,6 +129,15 @@ export function buildMapsUrl(job) {
   // Security: only allow https:// URLs
   if (!url || !/^https:\/\//i.test(url)) return null;
   return url;
+}
+
+// [FEAT 2026-07-19] เช็คว่าเป็นพิกัดทางแชทที่ยังไม่มีลิงก์
+export function isChatLocPending(job) {
+  return (
+    job &&
+    (job.locationType === LOC_TYPE.PLACEHOLDER || job.location_raw?.includes('(โลเคชั่นทางแชท)')) &&
+    !job.loc_override
+  );
 }
 
 // Request GPS location

@@ -153,6 +153,14 @@ function cardPending(j, pri, etaInfo) {
         </div>`
             : ''
         }
+        ${
+          Location.isChatLocPending(j)
+            ? `<div style="display:flex;gap:5px;margin-top:6px;width:100%;" onclick="event.stopPropagation()">
+          <input id="locOv_${j.id}" type="text" class="form-input" placeholder="วางลิงก์แผนที่จากแชท/ไลน์..." value="${j.loc_override || ''}" style="flex:1;font-size:11px;padding:6px;">
+          <button onclick="saveLocOverride('${j.id}', document.getElementById('locOv_${j.id}').value)" style="font-size:11px;padding:6px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#818cf8;border-radius:8px;cursor:pointer;white-space:nowrap;">บันทึก</button>
+        </div>`
+            : ''
+        }
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           ${
             j.price
@@ -199,8 +207,11 @@ function cardPending(j, pri, etaInfo) {
           .join('')}
         ${
           mapsUrl
-            ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>นำทาง</a>`
+            ? (Location.isChatLocPending(j)
+                ? `<button onclick="promptNavigate('${j.id}')" class="btn-nav" style="flex:1.5;cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>นำทาง</button>`
+                : `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>นำทาง</a>`)
             : ''
         }
         <button onclick="openPostponeModal('${j.id}')" class="btn-postpone" style="flex:1;">🔄 เลื่อน</button>
