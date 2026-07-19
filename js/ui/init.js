@@ -74,7 +74,6 @@ function initApp() {
   // Initial render
   Renderer.renderAll();
 
-<<<<<<< HEAD
   // Paste listener for parser
   const parserInput = document.getElementById('parserInput');
   if (parserInput) {
