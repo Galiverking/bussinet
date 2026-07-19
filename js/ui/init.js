@@ -4,6 +4,7 @@ import * as Renderer from './renderer.js';
 import * as Actions from './actions.js';
 import * as Theme from './theme.js';
 import * as Modals from './modals.js';
+import * as Location from '../services/location.js';
 import * as Supabase from '../services/supabase.js';
 import { Logger } from '../utils/logger.js';
 import * as Formatters from '../utils/formatters.js';
@@ -119,6 +120,8 @@ export function exposeToWindow() {
   window.deleteJob = Actions.deleteJob;
   window.openPostponeModal = Modals.openPostponeModal;
   window.undoPostpone = Modals.undoPostpone;
+  window.closePostponeModal = Modals.closePostponeModal;
+  window.doPostpone = Modals.doPostpone;
   window.openDetailById = Modals.openDetailModal;
   window.closeDetailModal = Modals.closeDetailModal;
   window.doConfirmDelete = Actions.doConfirmDelete;
@@ -134,7 +137,9 @@ export function exposeToWindow() {
   window.openParserModal = Modals.openParserModal;
   window.closeParserModal = Modals.closeParserModal;
   window.runParser = Modals.runParser;
+  window.saveFromParser = Modals.saveFromParser;
   window.saveJob = Modals.saveJob;
+  window.closeEditModal = Modals.closeEditModal;
   window.openExpenseModal = Modals.openExpenseModal;
   window.saveExpense = Modals.saveExpense;
   window.closeExpenseModal = Modals.closeExpenseModal;
