@@ -55,10 +55,13 @@ function showPreview(list) {
         const wheelBadges =
           j.wheelSizes && j.wheelSizes.length > 0
             ? j.wheelSizes
-                .map(
-                  (ws) =>
-                    `<span style="color:#c4b5fd;background:rgba(196,181,253,0.12);padding:1px 6px;border-radius:5px;border:1px solid rgba(196,181,253,0.25);">🔵 ${ws.size}" × ${ws.qty}วง</span>`
-                )
+                .map((ws) => {
+                  const label = ws.rim
+                    ? `${ws.width}/${ws.profile}R${ws.rim}`
+                    : `${ws.width}/${ws.profile}`;
+                  const qty = j.quantity ? ` × ${j.quantity}วง` : '';
+                  return `<span style="color:#c4b5fd;background:rgba(196,181,253,0.12);padding:1px 6px;border-radius:5px;border:1px solid rgba(196,181,253,0.25);">🔵 ${label}${qty}</span>`;
+                })
                 .join(' ')
             : j.quantity
               ? `<span style="color:#a5b4fc;">× ${j.quantity} วง</span>`

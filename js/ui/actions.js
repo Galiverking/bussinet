@@ -129,7 +129,9 @@ export function exportToCSV() {
     }
     const wheelSizesStr =
       j.wheelSizes && j.wheelSizes.length > 0
-        ? j.wheelSizes.map((ws) => `${ws.size}"×${ws.qty}วง`).join(', ')
+        ? j.wheelSizes
+            .map((ws) => (ws.rim ? `${ws.width}/${ws.profile}R${ws.rim}` : `${ws.width}/${ws.profile}`))
+            .join(', ')
         : j.wheel_str || '';
     const row = [
       'Job',

@@ -166,7 +166,7 @@ function cardPending(j, pri, etaInfo) {
               ? j.wheelSizes
                   .map(
                     (ws) =>
-                      `<span style="font-size:11px;color:#c4b5fd;background:rgba(196,181,253,0.1);padding:2px 7px;border-radius:5px;border:1px solid rgba(196,181,253,0.2);">🔵 ${ws.size}" ×${ws.qty}</span>`
+                      `<span style="font-size:11px;color:#c4b5fd;background:rgba(196,181,253,0.1);padding:2px 7px;border-radius:5px;border:1px solid rgba(196,181,253,0.2);">🔵 ${ws.rim ? `${ws.width}/${ws.profile}R${ws.rim}` : `${ws.width}/${ws.profile}`}</span>`
                   )
                   .join('')
               : j.wheel_str
