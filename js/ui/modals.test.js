@@ -29,6 +29,7 @@ vi.mock('../services/location.js', () => ({
   calcETAClock: vi.fn(() => null),
   calcETAClocks: vi.fn(() => []),
   buildMapsUrl: vi.fn(() => 'https://maps.test'),
+  isChatLocPending: vi.fn(() => false),
   getETAText: vi.fn(() => '~10 นาที'),
 }));
 

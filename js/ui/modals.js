@@ -447,7 +447,9 @@ export function openDetailModal(id) {
       actions += `<a href="tel:${p}" class="btn-call" style="flex:1;">📞 โทร</a>`;
     });
     if (mapsUrl)
-      actions += `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">📍 นำทาง</a>`;
+      actions += Location.isChatLocPending(j)
+        ? `<button onclick="promptNavigate('${j.id}')" class="btn-nav" style="flex:1.5;cursor:pointer;">📍 นำทาง</button>`
+        : `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">📍 นำทาง</a>`;
     actions += `<button onclick="openPostponeModal('${j.id}');closeDetailModal();" class="btn-postpone" style="flex:1;">🔄 เลื่อน</button>`;
     actions += `<button onclick="completeJob('${j.id}');closeDetailModal();" class="btn-done" style="flex:1;">✅ เสร็จ</button>`;
   }

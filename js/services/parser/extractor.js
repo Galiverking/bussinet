@@ -25,10 +25,18 @@ export function extract(block) {
   let m;
 
   // ---- PHONE ----
-  // เบอร์/โทร/Tel/Phone + optional separator + 9-15 digits/spaces/dashes
+  // แก้บัค: จับเบอร์โทรได้ทั้งมีคำนำ (เบอร์/โทร) และแบบติดชื่อเลย (ลูกค้า ก 0812345678)
+  // Pattern 1: มีคำนำ เบอร์/โทร/Tel/Phone
   m = block.match(/(?:เบอร์|โทร|Tel|Phone)\s*[:：]?\s*([\d\s-]{9,15})/i);
   if (m) {
     job.phone = m[1].replace(/[^\d]/g, '').slice(0, 10);
+  } else {
+    // Pattern 2: เบอร์โทรไทย 0xxxxxxxxx (9-10 ตัว) แบบไม่มีคำนำ
+    // ต้องขึ้นต้นด้วย 0 และอยู่หลังช่องว่าง หรือขึ้นต้นบล็อก
+    const pm = block.match(/(?:^|\s)(0\d{8,9})(?:\s|$)/);
+    if (pm) {
+      job.phone = pm[1];
+    }
   }
 
   // ---- CUSTOMER NAME ----
@@ -36,9 +44,27 @@ export function extract(block) {
   // (TEMP) handles "ชื่อเฟสมานี" (no space) and "ชื่อเฟส มานี".
   // \p{M} included for Thai combining vowels (ี ู ์ etc.)
   m = block.match(
-    /(?:ชื่อเฟส|ลูกค้า|คุณ|ชื่อ|เฟส)\s*[:：]?\s*([\p{L}\p{M} .-]{2,30})|^([\p{L}\p{M} .-]{2,30})$/mu
+    /(?:ชื่อเฟส|ลูกค้า|คุณ|ชื่อ|เฟส)\s*[:：]?\s*([\p{L}\p{M}\d .'-]{1,30}?)\s*(?=\d{9,10}|พิกัด|ที่อยู่|โทร|เบอร์|$)/mu
   );
+  if (!m) {
+    m = block.match(/^([\p{L}\p{M}\d .'-]{2,30})$/mu);
+  }
   if (m) job.customer_name = (m[1] || m[2] || '').trim();
+
+  // [FIX 2026-07-19] Fallback: ถ้าไม่มีคำนำ ให้จับชื่อจากข้อความแรกที่มีอักษรไทย
+  // (รองรับ "ร้านวรรณา 0822223333 ..." แบบไม่มีคำนำ ลูกค้า/ชื่อ)
+  if (!job.customer_name) {
+    // แก้บัค: ตัดเบอร์โทรออกก่อนเช็คชื่อ (รองรับ "ร้านวรรณา 0822223333 ...")
+    const cleaned = block.replace(/0\d{8,9}/g, ' ').split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const line of cleaned) {
+      if (/^(?:เบอร์|โทร|พิกัด|ที่อยู่|ราคา|ล้อ|ชื่อเฟส|เวลา|นัด)/i.test(line)) continue;
+      const nm = line.match(/^[\p{L}\p{M}][\p{L}\p{M}\d .'-]{1,30}/u);
+      if (nm && nm[0].trim().length >= 2) {
+        job.customer_name = nm[0].trim();
+        break;
+      }
+    }
+  }
 
   // ---- COORDS (พิกัด) ----
   // (TEMP) capture "พิกัด 13.7563, 100.5018" before the address heuristic
@@ -118,7 +144,7 @@ export function extract(block) {
 
   // ---- TYRE/WHEEL SIZES ----
   // Pattern 1: standard "185/65R15" (with R)
-  const tyreRegex = /(\d{3})\/[-]?(\d{2,3})R?(\d{2,3})/g;
+  const tyreRegex = /(\d{1,3})\/[-]?(\d{1,3})R?(\d{1,3})/g;
   let match;
   const sizes = [];
   while ((match = tyreRegex.exec(block)) !== null) {
@@ -130,7 +156,7 @@ export function extract(block) {
 
   // Pattern 2 (teacher): "18/4 วงราคา", "2 วงพร้อมยาง", "2ชุดราคา"
   if (sizes.length === 0) {
-    const tw = block.match(/(\d{1,2})\/(\d{1,2})\s*(?:วง|ชุด)?\s*(?:พร้อมยาง|ราคา|ล้อ)/);
+    const tw = block.match(/(\d{1,2})\/(\d{1,2})(?:\s*(?:วง|ชุด|ล้อ))?/);
     if (tw) {
       sizes.push({
         width: parseInt(tw[1], 10),
