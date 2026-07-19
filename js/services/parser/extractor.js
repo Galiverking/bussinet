@@ -83,10 +83,10 @@ export function extract(block) {
 
   // [FEAT 2026-07-19] ตรวจจับพิกัดจากแชท/ไลน์ ("โลเคชั่นทางแชท")
   if (!job.location_raw) {
-    const chatLoc = block.match(/(?:โลเคชั่นทางแชท|location|พิกัด(?:จาก)?แชท|ส่งพิกัด|ตำแหน่งจากแชท)/i);
+    const chatLoc = block.match(/(?:โลเคชั่นทาง(?:ช่อง)?แชท|location|พิกัด(?:จาก)?(?:ช่อง)?แชท|ส่งพิกัด|ตำแหน่งจากแชท)/i);
     if (chatLoc) {
       // หาข้อความพิกัดดิบที่อาจอยู่ติดมา (เช่น ชื่อสถานที่ หรือพิกัดกึ่งกลาง)
-      const rawMatch = block.match(/(?:โลเคชั่นทางแชท|location)[^\n]*?([\p{L}\d\s./,-]{3,60})/i);
+      const rawMatch = block.match(/(?:โลเคชั่นทาง(?:ช่อง)?แชท|location)[^\n]*?([\p{L}\d\s./,-]{3,60})/i);
       const raw = rawMatch ? rawMatch[1].trim() : 'พิกัดจากแชท';
       job.location_raw = raw + ' (โลเคชั่นทางแชท)';
       job.locationType = 'placeholder';

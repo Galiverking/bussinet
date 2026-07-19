@@ -22,6 +22,18 @@ describe('chat location detection', () => {
     expect(j.locationType).toBe('placeholder');
   });
 
+  it('detects โลเคชั่นทางช่องแชท (with ช่อง) as placeholder', () => {
+    const j = extract('ลูกค้า ค 0811112222 โลเคชั่นทางช่องแชท หน้าวัดกลาง 18/4 1 ชุด ราคา 1300');
+    expect(j.locationType).toBe('placeholder');
+    expect(j.location_raw).toContain('(โลเคชั่นทางแชท)');
+    expect(isChatLocPending(j)).toBe(true);
+  });
+
+  it('detects พิกัดจากช่องแชท (with ช่อง) as placeholder', () => {
+    const j = extract('ลูกค้า ง 0833334444 พิกัดจากช่องแชท ตลาดนัดหลังบ้าน 18/4 4 ชุด ราคา 5200');
+    expect(j.locationType).toBe('placeholder');
+  });
+
   it('buildMapsUrl returns null for placeholder without override', () => {
     const j = { locationType: 'placeholder', location_raw: 'x (โลเคชั่นทางแชท)', loc_override: null };
     expect(buildMapsUrl(j)).toBeNull();
