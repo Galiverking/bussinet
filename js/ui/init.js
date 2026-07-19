@@ -141,6 +141,7 @@ export function exposeToWindow() {
   window.undoPostpone = Modals.undoPostpone;
   window.closePostponeModal = Modals.closePostponeModal;
   window.doPostpone = Modals.doPostpone;
+  window.openDetailModal = Modals.openDetailModal;
   window.openDetailById = Modals.openDetailModal;
   window.closeDetailModal = Modals.closeDetailModal;
   window.doConfirmDelete = Actions.doConfirmDelete;

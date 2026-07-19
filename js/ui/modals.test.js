@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import Store from '../core/store.js';
 
 // ── Module Mocks ──────────────────────────────────────────────────
 // Mock VALIDATORS — allow per-test control
@@ -27,6 +28,8 @@ vi.mock('../services/location.js', () => ({
   haversine: vi.fn(() => 5.2),
   calcETAClock: vi.fn(() => null),
   calcETAClocks: vi.fn(() => []),
+  buildMapsUrl: vi.fn(() => 'https://maps.test'),
+  getETAText: vi.fn(() => '~10 นาที'),
 }));
 
 vi.mock('../core/store.js', () => ({
@@ -328,5 +331,52 @@ describe('Window function wiring (buttons clickable)', () => {
       expect(() => btn.click()).not.toThrow();
       expect(window[fnName]).toHaveBeenCalled();
     });
+  });
+});
+
+// ── openDetailModal opens detail modal with full data ──
+describe('openDetailModal shows full customer detail', () => {
+  it('opens detailModal and renders all fields for a job', async () => {
+    document.body.innerHTML = `
+      <div id="detailModal" class="hidden"></div>
+      <div id="detailContent"></div>
+      <div id="detailActions"></div>
+    `;
+    Store.set('jobs', [
+      {
+        id: 'job-x', customer_name: 'สมชาย', phone: '0812345678',
+        location_raw: '13.7,100.5', locationType: 'coords', price: 1500,
+        wheel_str: '18/4 วง', quantity: 4, tags: 'น้ำมัน', time_note: 'ไม่เกิน 17.00',
+        distance_km: 5.2, status: 'pending', postponed: false,
+        raw_note: 'หมายเหตุ', created_at: new Date().toISOString(),
+      },
+    ]);
+
+    const mod = await import('./modals.js');
+    mod.openDetailModal('job-x');
+
+    const modal = document.getElementById('detailModal');
+    expect(modal.classList.contains('hidden')).toBe(false);
+    const html = document.getElementById('detailContent').innerHTML;
+    expect(html).toContain('สมชาย');
+    expect(html).toContain('0812345678');
+    expect(html).toContain('18/4');
+    expect(html).toContain('5.2');
+    expect(html).toContain('น้ำมัน');
+  });
+
+  it('opens detailModal for done jobs', async () => {
+    document.body.innerHTML = `
+      <div id="detailModal" class="hidden"></div>
+      <div id="detailContent"></div>
+      <div id="detailActions"></div>
+    `;
+    Store.set('jobs', [
+      { id: 'job-done', customer_name: 'เสร็จแล้ว', price: 2000, status: 'done', postponed: false, created_at: new Date().toISOString() },
+    ]);
+    const mod = await import('./modals.js');
+    mod.openDetailModal('job-done');
+    expect(document.getElementById('detailModal').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('detailContent').innerHTML).toContain('เสร็จแล้ว');
   });
 });

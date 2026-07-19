@@ -264,7 +264,7 @@ function renderDone() {
     done
       .map(
         (j) => `
-    <div class="job-done mb-2">
+    <div class="job-done mb-2" onclick="openDetailModal('${j.id}')">
       <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;">
         <div style="width:20px;height:20px;background:rgba(74,222,128,0.13);border:1px solid rgba(74,222,128,0.28);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>
