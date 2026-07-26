@@ -152,7 +152,8 @@ export function extract(block) {
 
   // ---- TYRE/WHEEL SIZES ----
   // Pattern 1: standard "185/65R15" (with R)
-  const tyreRegex = /(\d{1,3})\/[-]?(\d{1,3})R?(\d{1,3})/g;
+  // [FIX 2026-07-26] remove R? → require R to prevent matching address numbers like "378/584"→"378/58R4"
+  const tyreRegex = /(\d{1,3})\/[-]?(\d{1,3})R(\d{1,3})/g;
   let match;
   const sizes = [];
   while ((match = tyreRegex.exec(block)) !== null) {
@@ -163,19 +164,24 @@ export function extract(block) {
   }
 
   // Pattern 2 (teacher): "18/4 วงราคา", "2 วงพร้อมยาง", "2ชุดราคา"
+  // [FIX 2026-07-26] require วง/ชุด/ล้อ keyword; add g flag for multiple wheels (e.g. "17/1ชุด+18/1ชุด")
   if (sizes.length === 0) {
-    const tw = block.match(/(\d{1,2})\/(\d{1,2})(?:\s*(?:วง|ชุด|ล้อ))?/);
-    if (tw) {
+    const teacherRegex = /(?:^|[^\/\d])(\d{1,2})\/(\d{1,2})\s*(?:วง|ชุด|ล้อ)/g;
+    let tw;
+    while ((tw = teacherRegex.exec(block)) !== null) {
       sizes.push({
         width: parseInt(tw[1], 10),
         profile: parseInt(tw[2], 10),
         rim: 0,
       });
-    } else {
+    }
+
+    // Still no wheel size? Try quantity-only format
+    if (sizes.length === 0) {
       // "2 วงพร้อมยาง", "2ชุดราคา" — no size given, just quantity
       // [FIX 2026-07-19] ใช้ (?<![\d]) กันจับท้ายเบอร์โทร
       // [FIX 2026-07-19] 1 ชุด = 4 วง → แปลงชุดเป็นวงก่อนนับ
-      const qm = block.match(/(?<![\d])\d{1,3}\s*(?:วง|ชุด)(?:\s*พร้อมยาง|\s*ราคา)?/);
+      const qm = block.match(/(?<![\d])[ \t]*\d{1,3}\s*(?:วง|ชุด)(?:\s*พร้อมยาง|\s*ราคา)?/);
       if (qm) {
         const num = parseInt(qm[0].replace(/\D/g, ''), 10);
         const isSet = /ชุด/.test(qm[0]);
@@ -191,12 +197,24 @@ export function extract(block) {
       .map((s) => (s.rim ? `${s.width}/${s.profile}R${s.rim}` : `${s.width}/${s.profile}`))
       .join(', ');
     // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
-    // [FIX 2026-07-19] ใช้ (?<![\d]) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
-    const qtyMatch = block.match(/(?<![\d])\d{1,3}\s*(?:เส้น|ชุด|ล้อ|วง)/);
-    if (qtyMatch) {
-      const num = parseInt(qtyMatch[0].replace(/\D/g, ''), 10);
-      // [FIX 2026-07-19] 1 ชุด = 4 วง
-      job.quantity = /ชุด/.test(qtyMatch[0]) ? num * 4 : num;
+    // [FIX 2026-07-19] ใช้ (?<!\d) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
+    // [FIX 2026-07-26] Strip wheel size patterns, then find first standalone number ≠ price
+    // "18/1วง 1 800" → strip "18/1วง" → " 1 800" → qty=1 (first num ≠ price=800)
+    // "17/1ชุด+18/1ชุด 2 ราคา6000" → strip both → " 2 ราคา6000" → qty=2 (≠ 6000)
+    const qtyClean = block.replace(
+      /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
+      ' '
+    );
+    const allNums = qtyClean.match(/\d{1,3}(?:\s|$)/g);
+    if (allNums) {
+      const p = job.price || 0;
+      for (const n of allNums) {
+        const parsed = parseInt(n, 10);
+        if (parsed !== p && parsed <= 99) {
+          job.quantity = parsed;
+          break;
+        }
+      }
     }
   }
 
@@ -210,11 +228,32 @@ export function extract(block) {
     m = block.match(/([\d,]+)\s*(?:บาท|บ\.?|฿)/i);
     if (m) job.price = parseInt(m[1].replace(/,/g, ''), 10);
   }
+  // [FIX 2026-07-26] fallback: standalone 3-5 digit number at end of block
+  // (e.g. "15/2วง 2 800" — 800 at end, no "ราคา" prefix)
+  if (!job.price) {
+    m = block.match(/(?<!\d)(\d{3,5})\s*$/);
+    if (m) job.price = parseInt(m[1], 10);
+  }
 
   // ---- QUANTITY (explicit) ----
   if (!job.quantity) {
     m = block.match(/จำนวน\s*[:：]?\s*(\d+)/);
     if (m) job.quantity = parseInt(m[1], 10);
+  }
+  // [FIX 2026-07-26] fallback: first standalone number ≠ price (when no wheel sizes)
+  // e.g. "ตาหนู่ย" → "5 ราคา2500" → qty=5 (≠ price=2500, ≤ 99)
+  if (!job.quantity) {
+    const fallbackNums = block.match(/(?<!\d)\d{1,3}(?!\s*\d)/g);
+    if (fallbackNums) {
+      const p = job.price || 0;
+      for (const n of fallbackNums) {
+        const parsed = parseInt(n, 10);
+        if (parsed !== p && parsed <= 99) {
+          job.quantity = parsed;
+          break;
+        }
+      }
+    }
   }
 
   // ---- PRIORITY ----
