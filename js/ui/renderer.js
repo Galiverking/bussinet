@@ -44,7 +44,7 @@ export function getSorted() {
  * "ชุด" (set) = 4 wheels, "วง"/"ล้อ" = 1 wheel.
  */
 export function calcActualWheels(j) {
-  let sizes = j.wheelSizes;
+  let sizes = j.wheelSizes || j.wheel_sizes;
   if (typeof sizes === 'string') {
     try { sizes = JSON.parse(sizes); } catch (e) { sizes = null; }
   }
@@ -217,8 +217,8 @@ function cardPending(j, pri, etaInfo) {
                 : ''
           }
           ${
-            j.quantity
-              ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${j.quantity} วง)</span>`
+            calcActualWheels(j)
+              ? `<span style="font-size:12px;color:#c4b5fd;font-weight:600;">(รวม ${calcActualWheels(j)} วง)</span>`
               : ''
           }
           ${
@@ -416,8 +416,8 @@ function renderManage() {
         }
         ${j.wheel_str ? `<span>🔵 ${Formatters.esc(j.wheel_str)}</span>` : ''}
         ${
-          j.quantity
-            ? `<span style="color:#c4b5fd;">( ${j.quantity} วง )</span>`
+          calcActualWheels(j)
+            ? `<span style="color:#c4b5fd;">( ${calcActualWheels(j)} วง )</span>`
             : ''
         }
         ${

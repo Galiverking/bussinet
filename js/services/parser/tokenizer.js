@@ -40,7 +40,7 @@ export function tokenize(text) {
 
   // Remove date prefix like "นัดรับวัน..."
   blocks = blocks
-    .map((b) => b.replace(/^นัดรับวัน.+$/m, '').trim())
+    .map((b) => b.replace(/^นัดรับ(?:วัน)?\s*.+$/m, '').trim())
     .filter((b) => b.length > 5);
 
   console.log(`[TOKENIZER] separator="${sepUsed}" → ${blocks.length} block(s)`);

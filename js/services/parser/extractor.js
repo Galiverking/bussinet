@@ -207,7 +207,7 @@ export function extract(block) {
       /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
       ' '
     );
-    const allNums = qtyClean.match(/\d{1,3}(?:\s|$)/g);
+    const allNums = qtyClean.match(/(?<!\d)\d{1,3}(?:\s|$)/g);
     if (allNums) {
       const p = job.price || 0;
       for (const n of allNums) {
