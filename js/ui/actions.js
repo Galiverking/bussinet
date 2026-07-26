@@ -5,7 +5,7 @@ import * as Formatters from '../utils/formatters.js';
 import * as Constants from '../core/constants.js';
 import * as Supabase from '../services/supabase.js';
 import Logger from '../utils/logger.js';
-import { renderAll, getSorted } from './renderer.js';
+import { renderAll, getSorted, calcActualWheels } from './renderer.js';
 
 // [FIX 2026-07-19] Optimistic update: แก้ Store local ทันทีแล้ว render
 // ไม่ต้องรอ Supabase Realtime → UI อัปเดตทันทีหลังกดเสร็จ/ลบ/เลื่อน
@@ -132,7 +132,7 @@ export function exportToCSV() {
 
   jobs.forEach((j) => {
     if (j.price) totalMoney += j.price;
-    if (j.quantity) totalWheels += j.quantity;
+    totalWheels += calcActualWheels(j);
     const dt = new Date(j.created_at);
     let completedStr = '';
     if (j.completed_at) {

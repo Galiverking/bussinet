@@ -37,6 +37,32 @@ export function getSorted() {
   return { pending, postponed, done };
 }
 
+// ==================== WHEEL COUNT HELPER ====================
+/**
+ * Calculate actual number of wheels for a job.
+ * Uses wheelSizes (with unit), falling back to quantity.
+ * "ชุด" (set) = 4 wheels, "วง"/"ล้อ" = 1 wheel.
+ */
+export function calcActualWheels(j) {
+  let sizes = j.wheelSizes;
+  if (typeof sizes === 'string') {
+    try { sizes = JSON.parse(sizes); } catch (e) { sizes = null; }
+  }
+  if (sizes && Array.isArray(sizes) && sizes.length > 0) {
+    // Has unit info (new parser) — calculate accurately
+    if (sizes[0].unit) {
+      return sizes.reduce((sum, s) => {
+        const count = s.profile || 1;
+        return sum + (s.unit === 'ชุด' ? count * 4 : count);
+      }, 0);
+    }
+    // Legacy: no unit — assume profile is wheel count
+    // (correct for "วง"/"ล้อ", undercounts "ชุด" but can't detect)
+    return sizes.reduce((sum, s) => sum + (s.profile || 1), 0);
+  }
+  return j.quantity || 0;
+}
+
 // ==================== RENDER KPI ====================
 function renderKPIs() {
   const jobs = Store.get('jobs') || [];
@@ -50,7 +76,7 @@ function renderKPIs() {
     todJobs.reduce((s, j) => s + (j.price || 0), 0) +
     todExpenses.reduce((s, e) => s + (e.amount || 0), 0);
 
-  const totalWheels = todJobs.reduce((s, j) => s + (j.quantity || 0), 0);
+  const totalWheels = todJobs.reduce((s, j) => s + calcActualWheels(j), 0);
 
   const kpiPending = document.getElementById('kpiPending');
   const kpiDone = document.getElementById('kpiDone');

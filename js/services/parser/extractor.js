@@ -165,14 +165,16 @@ export function extract(block) {
 
   // Pattern 2 (teacher): "18/4 วงราคา", "2 วงพร้อมยาง", "2ชุดราคา"
   // [FIX 2026-07-26] require วง/ชุด/ล้อ keyword; add g flag for multiple wheels (e.g. "17/1ชุด+18/1ชุด")
+  // [FIX 2026-07-26 v2] capture unit (วง/ชุด/ล้อ) for accurate wheel count calculation
   if (sizes.length === 0) {
-    const teacherRegex = /(?:^|[^\/\d])(\d{1,2})\/(\d{1,2})\s*(?:วง|ชุด|ล้อ)/g;
+    const teacherRegex = /(?:^|[^\/\d])(\d{1,2})\/(\d{1,2})\s*(วง|ชุด|ล้อ)/g;
     let tw;
     while ((tw = teacherRegex.exec(block)) !== null) {
       sizes.push({
         width: parseInt(tw[1], 10),
         profile: parseInt(tw[2], 10),
         rim: 0,
+        unit: tw[3],
       });
     }
 
