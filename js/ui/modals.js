@@ -450,6 +450,8 @@ export function openDetailModal(id) {
       actions += Location.isChatLocPending(j)
         ? `<button onclick="promptNavigate('${j.id}')" class="btn-nav" style="flex:1.5;cursor:pointer;">📍 นำทาง</button>`
         : `<a href="${mapsUrl}" target="_blank" rel="noopener" class="btn-nav" style="flex:1.5;">📍 นำทาง</a>`;
+    else
+      actions += `<button onclick="var url=prompt('🔗 วางลิงก์ Google Maps จากแชท/ไลน์:');if(url)saveLocOverride('${j.id}',url)" class="btn-nav" style="flex:1.5;cursor:pointer;">🔗 ลิ้งค์</button>`;
     actions += `<button onclick="openPostponeModal('${j.id}');closeDetailModal();" class="btn-postpone" style="flex:1;">🔄 เลื่อน</button>`;
     actions += `<button onclick="completeJob('${j.id}');closeDetailModal();" class="btn-done" style="flex:1;">✅ เสร็จ</button>`;
   }
