@@ -56,8 +56,17 @@ export function calcActualWheels(j) {
         return sum + (s.unit === 'ชุด' ? count * 4 : count);
       }, 0);
     }
-    // Legacy: no unit — assume profile is wheel count
-    // (correct for "วง"/"ล้อ", undercounts "ชุด" but can't detect)
+    // Legacy: no unit — check raw_note for "ชุด" pattern
+    // e.g. "17/1 ชุด และ 18/1 ชุด" → each is a set, multiply by 4
+    if (j.raw_note && /\/\d{1,2}\s*ชุด/.test(j.raw_note)) {
+      return sizes.reduce((sum, s) => {
+        const count = s.profile || 1;
+        // Check if this specific size is a set in the raw text
+        const sizeMatch = new RegExp(s.width + '/' + s.profile + '\\s*ชุด');
+        return sum + (j.raw_note.match(sizeMatch) ? count * 4 : count);
+      }, 0);
+    }
+    // Legacy without ชุด: assume profile is wheel count
     return sizes.reduce((sum, s) => sum + (s.profile || 1), 0);
   }
   return j.quantity || 0;
