@@ -61,7 +61,21 @@ function initEventBindings() {
       cfOk.onclick = null;
       cfOk.onclick = () => {
         const id = Store.get('delTargetId');
-        if (id) Actions.deleteJob(id);
+        if (id) {
+          if (id.startsWith('__exp__')) {
+            // ลบรายจ่าย
+            const expenseId = id.replace('__exp__', '');
+            Supabase.deleteExpense(expenseId).then(() => {
+              fetchExpenses();
+              Formatters.toast('🗑️ ลบรายจ่ายแล้ว', 'err');
+            }).catch((err) => {
+              Formatters.toast('❌ ไม่สามารถลบรายจ่ายได้: ' + err.message, 'err');
+            });
+          } else {
+            // ลบงาน
+            Actions.deleteJob(id);
+          }
+        }
         document.getElementById('confirmDlg').classList.add('hidden');
         Store.set('delTargetId', null);
       };
