@@ -124,90 +124,131 @@ export function exportToCSV() {
   const jobs = Store.get('jobs') || [];
   const expenses = Store.get('expenses') || [];
 
-  let csvContent = '\uFEFF';
-  csvContent +=
-    'Type,Date,Time,Status,Completed_At,Postponed,Postponed_Date,Customer_Name,Phone,Location,Price_Amount,Wheel_Sizes,Quantity,Note,Tags\n';
-
-  let totalMoney = 0;
-  let totalWheels = 0;
+  // รวบรวมรายการทั้งหมดเรียงตามเวลา
+  const all = [];
+  let totalJobMoney = 0,
+      totalExpenseMoney = 0,
+      totalWheels = 0;
 
   jobs.forEach((j) => {
-    if (j.price) totalMoney += j.price;
-    // totalWheels: นับเฉพาะ pending jobs (ไม่นับ done)
+    if (j.price) totalJobMoney += j.price;
     if (j.status !== 'done') totalWheels += calcActualWheels(j);
-    const dt = new Date(j.created_at);
-    let completedStr = '';
-    if (j.completed_at) {
-      try {
-        const cd = new Date(j.completed_at);
-        completedStr =
-          cd.toLocaleDateString('th-TH') +
-          ' ' +
-          cd.toLocaleTimeString('th-TH', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-      } catch (_) {
-        completedStr = j.completed_at;
-      }
-    }
-    const postponedStr = j.postponed ? 'ใช่' : '';
-    const postponeDateStr = j.postpone_date || j.postpone_until || '';
-    const wheelSizesStr =
+    const ws =
       j.wheelSizes && j.wheelSizes.length > 0
         ? j.wheelSizes
-            .map((ws) => (ws.rim ? `${ws.width}/${ws.profile}R${ws.rim}` : `${ws.width}/${ws.profile}`))
+            .map((w) => (w.rim ? `${w.width}/${w.profile}R${w.rim}` : `${w.width}/${w.profile}`))
             .join(', ')
         : j.wheel_str || '';
-    const row = [
-      'Job',
-      dt.toLocaleDateString('th-TH'),
-      dt.toLocaleTimeString('th-TH'),
-      j.status,
-      completedStr,
-      postponedStr,
-      postponeDateStr,
-      j.customer_name,
-      j.phone,
-      j.location_raw,
-      j.price,
-      wheelSizesStr,
-      j.quantity,
-      (j.time_note || '') + ' ' + (j.raw_note || '').replace(/\n/g, ' '),
-      j.tags,
-    ]
-      .map((v) => '"' + (v || '').toString().replace(/"/g, '""') + '"')
-      .join(',');
-    csvContent += row + '\n';
+    const stMap = { pending: 'รอ', done: 'เสร็จ', postponed: 'เลื่อน' };
+    all.push({
+      t: 1,
+      dt: new Date(j.created_at),
+      row: [
+        'งาน',
+        j.customer_name,
+        j.phone,
+        j.location_raw,
+        ws,
+        j.quantity || '',
+        j.price || '',
+        stMap[j.status] || j.status,
+        j.time_note || '',
+      ],
+    });
   });
 
   expenses.forEach((e) => {
-    const dt = new Date(e.created_at);
-    const row = [
-      'Expense',
-      dt.toLocaleDateString('th-TH'),
-      dt.toLocaleTimeString('th-TH'),
-      'done',
-      '',
-      '',
-      '',
-      e.name,
-      '',
-      '',
-      e.amount,
-      '',
-      '',
-      '',
-      e.tags,
-    ]
-      .map((v) => '"' + (v || '').toString().replace(/"/g, '""') + '"')
-      .join(',');
-    csvContent += row + '\n';
+    totalExpenseMoney += e.amount || 0;
+    all.push({
+      t: 2,
+      dt: new Date(e.created_at),
+      row: [
+        'รายจ่าย',
+        e.name,
+        '',
+        '',
+        '',
+        '',
+        e.amount || '',
+        'ชำระแล้ว',
+        e.tags || '',
+      ],
+    });
   });
 
-  csvContent += `\n"Summary","","","","","","","รวมจำนวนเงินบาท","",${totalMoney},"รวมล้อวง","",${totalWheels},"",""\n`;
+  // เรียงตามเวลา
+  all.sort((a, b) => a.dt - b.dt);
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const esc = (v) => '"' + (v || '').toString().replace(/"/g, '""') + '"';
+
+  let csvContent = '\uFEFF';
+  csvContent += 'ประเภท,วันที่,เวลา,ลูกค้า,เบอร์,ที่อยู่,ยาง,จำนวน,ราคา,สถานะ,โน๊ต\n';
+
+  all.forEach((item) => {
+    const d = item.dt;
+    const dateStr = d.toLocaleDateString('th-TH');
+    const timeStr = d.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    csvContent +=
+      [esc(item.row[0]), esc(dateStr), esc(timeStr), ...item.row.slice(1).map(esc)].join(',') +
+      '\n';
+  });
+
+  // สรุป
+  const profit = totalJobMoney - totalExpenseMoney;
+  csvContent += '\n';
+  csvContent +=
+    [esc('📊 สรุป'), '', '', '', '', '', '', '', '', '', ''].join(',') + '\n';
+  csvContent +=
+    [
+      esc('รายได้'),
+      esc(jobs.length + ' งาน'),
+      '',
+      '',
+      '',
+      '',
+      '',
+      esc('รวม'),
+      esc(totalJobMoney.toLocaleString() + ' บาท'),
+      '',
+      esc(totalWheels + ' วง'),
+    ].join(',') + '\n';
+  csvContent +=
+    [
+      esc('รายจ่าย'),
+      esc(expenses.length + ' รายการ'),
+      '',
+      '',
+      '',
+      '',
+      '',
+      esc('รวม'),
+      esc(totalExpenseMoney.toLocaleString() + ' บาท'),
+      '',
+      '',
+    ].join(',') + '\n';
+  csvContent +=
+    [
+      esc('กำไร'),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      esc('สุทธิ'),
+      esc(
+        (profit < 0 ? 'ขาดทุน ' : '') +
+          Math.abs(profit).toLocaleString() +
+          ' บาท'
+      ),
+      '',
+      '',
+    ].join(',') + '\n';
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
