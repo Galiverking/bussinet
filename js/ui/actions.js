@@ -77,6 +77,7 @@ async function deleteJob(id) {
 
 export async function toggleSortMode(val) {
   window.isManualSort = val;
+  Store.set('isManualSort', val);
   localStorage.setItem('logis_manualSort', val);
   const sortLabel = document.getElementById('sortLabel');
   if (sortLabel) {
@@ -125,14 +126,15 @@ export function exportToCSV() {
 
   let csvContent = '\uFEFF';
   csvContent +=
-    'Type,Date,Time,Status,Completed_At,Customer_Name,Phone,Location,Price_Amount,Wheel_Sizes,Quantity,Note,Tags\n';
+    'Type,Date,Time,Status,Completed_At,Postponed,Postponed_Date,Customer_Name,Phone,Location,Price_Amount,Wheel_Sizes,Quantity,Note,Tags\n';
 
   let totalMoney = 0;
   let totalWheels = 0;
 
   jobs.forEach((j) => {
     if (j.price) totalMoney += j.price;
-    totalWheels += calcActualWheels(j);
+    // totalWheels: นับเฉพาะ pending jobs (ไม่นับ done)
+    if (j.status !== 'done') totalWheels += calcActualWheels(j);
     const dt = new Date(j.created_at);
     let completedStr = '';
     if (j.completed_at) {
@@ -149,6 +151,8 @@ export function exportToCSV() {
         completedStr = j.completed_at;
       }
     }
+    const postponedStr = j.postponed ? 'ใช่' : '';
+    const postponeDateStr = j.postpone_date || j.postpone_until || '';
     const wheelSizesStr =
       j.wheelSizes && j.wheelSizes.length > 0
         ? j.wheelSizes
@@ -161,6 +165,8 @@ export function exportToCSV() {
       dt.toLocaleTimeString('th-TH'),
       j.status,
       completedStr,
+      postponedStr,
+      postponeDateStr,
       j.customer_name,
       j.phone,
       j.location_raw,
@@ -183,6 +189,8 @@ export function exportToCSV() {
       dt.toLocaleTimeString('th-TH'),
       'done',
       '',
+      '',
+      '',
       e.name,
       '',
       '',
@@ -197,7 +205,7 @@ export function exportToCSV() {
     csvContent += row + '\n';
   });
 
-  csvContent += `\n"Summary","","","","","","","รวมจำนวนเงินบาท",${totalMoney},"จำนวนล้อวง",${totalWheels},"","",""\n`;
+  csvContent += `\n"Summary","","","","","","","รวมจำนวนเงินบาท","",${totalMoney},"รวมล้อวง","",${totalWheels},"",""\n`;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

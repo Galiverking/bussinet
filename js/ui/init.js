@@ -10,7 +10,6 @@ import { Logger } from '../utils/logger.js';
 import * as Formatters from '../utils/formatters.js';
 
 // Module-scoped element refs (shared across init functions)
-let sortToggle = null;
 
 // ==================== EVENT BINDINGS ====================
 function initEventBindings() {
@@ -27,16 +26,8 @@ function initEventBindings() {
   if (btnPaste) btnPaste.addEventListener('click', () => Modals.openParserModal());
 
   // Search/filter input in manage tab
-  const queueInput = document.getElementById('queueInput');
-  if (queueInput) queueInput.addEventListener('input', () => Renderer.renderAll());
-
-  // Sort toggle
-  sortToggle = document.getElementById('sortToggle');
-  if (sortToggle) sortToggle.addEventListener('click', () => {
-    const mode = Store.get('sortMode') === 'manual' ? 'time' : 'manual';
-    Store.set('sortMode', mode);
-    Renderer.renderAll();
-  });
+  const manSearch = document.getElementById('manSearch');
+  if (manSearch) manSearch.addEventListener('input', () => Renderer.renderAll());
 
   // Modal close on backdrop click
   document.addEventListener('click', (e) => {
@@ -122,11 +113,14 @@ function initApp() {
     );
   }
 
-  // Sort toggle change
-  if (sortToggle) {
-    sortToggle.addEventListener('change', () => {
-      Actions.toggleSortMode(sortToggle.checked);
-    });
+  // Initialize manual sort flag
+  window.isManualSort = Store.get('isManualSort') || false;
+  const sToggle = document.getElementById('sortToggle');
+  if (sToggle) sToggle.checked = window.isManualSort;
+  const sLabel = document.getElementById('sortLabel');
+  if (sLabel) {
+    sLabel.textContent = window.isManualSort ? 'MANUAL' : 'AUTO';
+    sLabel.style.color = window.isManualSort ? '#3b82f6' : '#475569';
   }
 
   // Load data (includes realtime subscription setup)
