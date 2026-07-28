@@ -29,7 +29,23 @@ export function tokenize(text) {
   // 3) Single blank-line separator (data like "พิกัด...\nโทร...\n\nพิกัด...")
   if (blocks.length <= 1) {
     blocks = text.split(/\n\s*\n/);
-    if (blocks.length > 1) sepUsed = 'single-blank-line';
+    if (blocks.length > 1) {
+      sepUsed = 'single-blank-line';
+      // [FIX 2026-07-28] Merge blocks that are continuation of the same order
+      // (field lines like โทร/เบอร์/ล้อ/ชื่อเฟส after blank line → merge into previous)
+      const FIELD_NEXT = /^\s*(?:โทร|เบอร์|ล้อ|ชื่อเฟส|ชื่อ)\s*[:：]/i;
+      const merged = [];
+      for (const b of blocks) {
+        const trimmed = b.trim();
+        if (!trimmed) continue;
+        if (merged.length > 0 && FIELD_NEXT.test(trimmed)) {
+          merged[merged.length - 1] += '\n\n' + trimmed;
+        } else {
+          merged.push(trimmed);
+        }
+      }
+      blocks = merged;
+    }
   }
 
   // 4) Triple newline fallback (original behavior)
