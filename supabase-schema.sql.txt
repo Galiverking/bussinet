@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   phone TEXT,
   location_raw TEXT,
   location_type TEXT DEFAULT 'place',
-  loc_override TEXT,
   price INTEGER DEFAULT 0,
   wheel_str TEXT,
   wheel_sizes JSONB,

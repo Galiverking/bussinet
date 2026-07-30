@@ -104,11 +104,7 @@ export function classifyLoc(raw) {
 export function buildMapsUrl(job) {
   if (!job) return null;
 
-  // [FEAT 2026-07-19] ใช้ลิงก์ที่ผู้ใช้ระบุแทนพิกัดแชท (loc_override)
-  if (job.loc_override && /^https?:\/\//i.test(job.loc_override)) {
-    return job.loc_override;
-  }
-
+  // ถ้า location_type เป็น 'url' ให้ใช้ location_raw เป็นลิงก์โดยตรง
   if (!job.location_raw || job.locationType === LOC_TYPE.PLACEHOLDER)
     return null;
 
@@ -131,12 +127,11 @@ export function buildMapsUrl(job) {
   return url;
 }
 
-// [FEAT 2026-07-19] เช็คว่าเป็นพิกัดทางแชทที่ยังไม่มีลิงก์
+// [FIX 2026-07-30] เช็คว่าเป็นพิกัดทางแชทที่ยังไม่มีลิงก์ (ไม่ใช้ loc_override เพราะไม่มี column)
 export function isChatLocPending(job) {
   return (
     job &&
-    (job.locationType === LOC_TYPE.PLACEHOLDER || job.location_raw?.includes('(โลเคชั่นทางแชท)')) &&
-    !job.loc_override
+    (job.locationType === LOC_TYPE.PLACEHOLDER || job.location_raw?.includes('(โลเคชั่นทางแชท)'))
   );
 }
 

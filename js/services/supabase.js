@@ -292,7 +292,6 @@ export function mapJobToDb(job) {
     phone: job.phone,
     location_raw: job.location_raw || job.locationRaw,
     location_type: job.location_type || job.locationType,
-    loc_override: job.loc_override || null,
     price: job.price,
     wheel_str: job.wheel_str || job.wheelStr,
     wheel_sizes: job.wheelSizes ? JSON.stringify(job.wheelSizes) : null,

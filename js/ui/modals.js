@@ -267,9 +267,6 @@ export function saveJob() {
     phone: document.getElementById('fPhone').value.trim(),
     location_raw: locRaw,
     location_type: locType,
-    loc_override:
-      (Store.get('jobs') || []).find((x) => x.id === Store.get('editingId'))?.loc_override ||
-      null,
     price: parseInt((document.getElementById('fPrice').value || '').replace(/,/g, '')) || 0,
     wheel_str: document.getElementById('fWheelStr')
       ? document.getElementById('fWheelStr').value.trim()
@@ -486,9 +483,9 @@ export function promptNavigate(id) {
   const j = jobs.find((x) => x.id === id);
   if (!j) return;
 
-  // ถ้ามีลิงก์แล้ว → เปิดเลย
-  if (j.loc_override && /^https?:\/\//i.test(j.loc_override)) {
-    window.open(j.loc_override, '_blank', 'noopener');
+  // ถ้ามีลิงก์ที่บันทึกไว้แล้ว → เปิดเลย
+  if (j.location_type === 'url' && j.location_raw && /^https?:\/\//i.test(j.location_raw)) {
+    window.open(j.location_raw, '_blank', 'noopener');
     return;
   }
 
@@ -549,15 +546,15 @@ export function saveLocOverride(id, url) {
   const idx = jobs.findIndex((x) => x.id === id);
   if (idx === -1) return;
 
-  // [FEAT 2026-07-19] Optimistic update
-  jobs[idx] = { ...jobs[idx], loc_override: url, location_type: 'url' };
+  // [FIX 2026-07-30] เก็บลิงก์ใน location_raw + location_type: 'url' (ไม่ใช้ loc_override เพราะไม่มี column ใน DB)
+  jobs[idx] = { ...jobs[idx], location_raw: url, location_type: 'url' };
   Store.set('jobs', jobs);
   renderAll();
 
-  Supabase.updateJob(id, { loc_override: url, location_type: 'url' })
-    .then(() => Formatters.toast('✅ บันึกลิงก์พิกัดแล้ว', 'ok'))
+  Supabase.updateJob(id, { location_raw: url, location_type: 'url' })
+    .then(() => Formatters.toast('✅ บันทึกลิงก์พิกัดแล้ว', 'ok'))
     .catch((err) => {
-      Logger.error('Supabase', 'Error saving loc_override:', err.message);
+      Logger.error('Supabase', 'Error saving map link:', err.message);
       Formatters.toast('❌ บันทึกลิงก์ไม่สำเร็จ: ' + err.message, 'err');
     });
 }

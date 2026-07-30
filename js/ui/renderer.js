@@ -191,7 +191,7 @@ function cardPending(j, pri, etaInfo) {
         ${
           Location.isChatLocPending(j)
             ? `<div style="display:flex;gap:5px;margin-top:6px;width:100%;" onclick="event.stopPropagation()">
-          <input id="locOv_${j.id}" type="text" class="form-input" placeholder="วางลิงก์แผนที่จากแชท/ไลน์..." value="${j.loc_override || ''}" style="flex:1;font-size:11px;padding:6px;">
+          <input id="locOv_${j.id}" type="text" class="form-input" placeholder="วางลิงก์แผนที่จากแชท/ไลน์..." value="" style="flex:1;font-size:11px;padding:6px;">
           <button onclick="saveLocOverride('${j.id}', document.getElementById('locOv_${j.id}').value)" style="font-size:11px;padding:6px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#818cf8;border-radius:8px;cursor:pointer;white-space:nowrap;">บันทึก</button>
         </div>`
             : ''
