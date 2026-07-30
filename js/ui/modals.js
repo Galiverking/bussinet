@@ -260,7 +260,7 @@ export function saveJob() {
     loc_override:
       (Store.get('jobs') || []).find((x) => x.id === Store.get('editingId'))?.loc_override ||
       null,
-    price: parseInt(document.getElementById('fPrice').value) || 0,
+    price: parseInt((document.getElementById('fPrice').value || '').replace(/,/g, '')) || 0,
     wheel_str: document.getElementById('fWheelStr')
       ? document.getElementById('fWheelStr').value.trim()
       : '',

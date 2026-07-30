@@ -194,38 +194,50 @@ export function extract(block) {
     }
   }
   if (sizes.length) {
-    job.wheelSizes = sizes;
-    // Build human-readable wheel string: "18/4 วง" etc.
-    job.wheel_str = sizes
-      .map((s) => (s.rim ? `${s.width}/${s.profile}R${s.rim}` : `${s.width}/${s.profile}`))
-      .join(', ');
-    // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
-    // [FIX 2026-07-19] ใช้ (?<!\d) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
-    // [FIX 2026-07-26] Strip wheel size patterns, then find first standalone number ≠ price
-    // "18/1วง 1 800" → strip "18/1วง" → " 1 800" → qty=1 (first num ≠ price=800)
-    // "17/1ชุด+18/1ชุด 2 ราคา6000" → strip both → " 2 ราคา6000" → qty=2 (≠ 6000)
-    const qtyClean = block.replace(
-      /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
-      ' '
-    );
-    const allNums = qtyClean.match(/(?<!\d)\d{1,3}(?:\s|$)/g);
-    if (allNums) {
-      const p = job.price || 0;
-      for (const n of allNums) {
-        const parsed = parseInt(n, 10);
-        if (parsed !== p && parsed <= 99) {
-          job.quantity = parsed;
-          break;
+      job.wheelSizes = sizes;
+      // Build human-readable wheel string: "18/4 วง" etc.
+      job.wheel_str = sizes
+        .map((s) => (s.rim ? `${s.width}/${s.profile}R${s.rim}` : `${s.width}/${s.profile}`))
+        .join(', ');
+      // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
+      // [FIX 2026-07-19] ใช้ (?<!\d) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
+      // [FIX 2026-07-26] Strip wheel size patterns, then find first standalone number ≠ price
+      // "18/1วง 1 800" → strip "18/1วง" → " 1 800" → qty=1 (first num ≠ price=800)
+      // "17/1ชุด+18/1ชุด 2 ราคา6000" → strip both → " 2 ราคา6000" → qty=2 (≠ 6000)
+      const qtyClean = block.replace(
+        /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\s*\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
+        ' '
+      );
+      const allNums = qtyClean.match(/(?<!\d)\d{1,3}(?:\s|$)/g);
+      if (allNums) {
+        const p = job.price || 0;
+        for (const n of allNums) {
+          const parsed = parseInt(n, 10);
+          if (parsed !== p && parsed <= 99) {
+            job.quantity = parsed;
+            break;
+          }
         }
       }
+      // [FIX 2026-07-30] When wheelSizes have unit info, calculate quantity from profile
+      // (รองรับ order 7: 15/4วง(4)+17/4วง(4)+18/12วง(12) = 20)
+      // ทำหลังจาก regex fallback เพื่อ override ค่าที่ผิด
+      if (!job.quantity && sizes[0].unit) {
+        job.quantity = sizes.reduce((sum, s) => {
+          const count = s.profile || 1;
+          return sum + (s.unit === 'ชุด' ? count * 4 : count);
+        }, 0);
+      }
     }
-  }
 
   // ---- PRICE ----
-  // "ราคา 2,600บาท", "1,400บ.", "5,000 บาท"
-  m = block.match(/ราคา\s*[:：]?\s*([\d,]+)\s*(?:บาท|บ\.?|฿)?/i);
-  if (m) {
-    job.price = parseInt(m[1].replace(/,/g, ''), 10);
+  // [FIX 2026-07-30] Sum ALL price lines (รองรับ order 7: 1,600+2,000+8,100 = 11,700)
+  const priceRegex = /ราคา\s*[:：]?\s*([\d,]+)\s*(?:บาท|บ\.?|฿)?/gi;
+  const priceMatches = [...block.matchAll(priceRegex)];
+  if (priceMatches.length > 0) {
+    job.price = priceMatches.reduce((sum, m) => {
+      return sum + parseInt(m[1].replace(/,/g, ''), 10);
+    }, 0);
   } else {
     // fallback: number near "บาท"/"บ."
     m = block.match(/([\d,]+)\s*(?:บาท|บ\.?|฿)/i);
@@ -236,6 +248,15 @@ export function extract(block) {
   if (!job.price) {
     m = block.match(/(?<!\d)(\d{3,5})\s*$/);
     if (m) job.price = parseInt(m[1], 10);
+  }
+  // [FIX 2026-07-30] Check for "รวมเป็นเงิน" or "รวมเป็นเงิน" total
+  // (e.g. "รวมเป็นเงิน11,700บาท" — ใช้เป็นราคาจริงถ้ามากกว่าที่ยกมา)
+  const totalMatch = block.match(/รวม(?:เป็น)?เงิน\s*([\d,]+)\s*(?:บาท|บ\.?|฿)?/i);
+  if (totalMatch) {
+    const totalPrice = parseInt(totalMatch[1].replace(/,/g, ''), 10);
+    if (totalPrice > job.price) {
+      job.price = totalPrice;
+    }
   }
 
   // ---- QUANTITY (explicit) ----

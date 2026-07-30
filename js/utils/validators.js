@@ -24,7 +24,8 @@ export const VALIDATOR = {
 
   price(v) {
     if (v === '' || v === null || v === undefined) return null;
-    const num = parseInt(v);
+    const cleaned = v.toString().replace(/,/g, '');
+    const num = parseInt(cleaned);
     if (isNaN(num)) return 'ราคาต้องเป็นตัวเลข';
     if (num < 0) return 'ราคาต้องไม่ติดลบ';
     if (num > 1000000) return 'ราคาต้องไม่เกิน 1,000,000 บาท';
