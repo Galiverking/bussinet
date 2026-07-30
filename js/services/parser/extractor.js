@@ -60,7 +60,17 @@ export function extract(block) {
       if (/^(?:เบอร์|โทร|พิกัด|ที่อยู่|ราคา|ล้อ|ชื่อเฟส|เวลา|นัด)/i.test(line)) continue;
       const nm = line.match(/^[\p{L}\p{M}][\p{L}\p{M}\d .'-]{1,30}/u);
       if (nm && nm[0].trim().length >= 2) {
-        job.customer_name = nm[0].trim();
+        // [FIX 2026-07-30] Trim at boundary keywords to prevent "สมชาย โทร"
+        let name = nm[0].trim();
+        const stopWords = [' โทร', ' เบอร์', ' พิกัด', ' ที่อยู่', ' ราคา', ' ล้อ', ' เวลา', ' นัด', ' หมายเหตุ'];
+        for (const w of stopWords) {
+          const idx = name.indexOf(w);
+          if (idx >= 2) {
+            name = name.substring(0, idx).trim();
+            break;
+          }
+        }
+        job.customer_name = name;
         break;
       }
     }
@@ -152,9 +162,9 @@ export function extract(block) {
   if (m) job.time_note = m[1];
 
   // ---- TYRE/WHEEL SIZES ----
-  // Pattern 1: standard "185/65R15" (with R)
-  // [FIX 2026-07-26] remove R? → require R to prevent matching address numbers like "378/584"→"378/58R4"
-  const tyreRegex = /(\d{1,3})\/[-]?(\d{1,3})R(\d{1,3})/g;
+  // Pattern 1: standard "185/65R15" (with R) - allow space before R
+  // [FIX 2026-07-30] space before/after R (185/65 R15 → now matched)
+  const tyreRegex = /(\d{1,3})\/[-]?(\d{1,3})\s*R\s*(\d{1,3})/g;
   let match;
   const sizes = [];
   while ((match = tyreRegex.exec(block)) !== null) {
