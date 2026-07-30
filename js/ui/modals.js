@@ -139,6 +139,7 @@ export async function saveFromParser() {
   const jobs = Store.get('jobs') || [];
   let added = 0;
   let failed = 0;
+  const savedJobs = []; // [FIX 2026-07-30] เก็บ jobs ที่บันทึกสำเร็จ
   Logger.info('Parser', 'Saving', parsedBuf.length, 'jobs');
 
   for (const j of parsedBuf) {
@@ -147,7 +148,9 @@ export async function saveFromParser() {
       jobs.some((x) => x.phone === j.phone && x.status === 'pending');
     if (!dup) {
       try {
-        await Supabase.insertJob(Supabase.mapJobToDb(j));
+        const res = await Supabase.insertJob(Supabase.mapJobToDb(j));
+        if (res?.error) throw res.error;
+        savedJobs.push(j); // [FIX] เก็บไว้ใช้ใน Store
         added++;
       } catch (err) {
         Logger.error(
@@ -162,6 +165,13 @@ export async function saveFromParser() {
   }
 
   closeParserModal();
+
+  // [FIX 2026-07-30] อัปเดต Local Store + re-render
+  if (savedJobs.length > 0) {
+    Store.set('jobs', [...jobs, ...savedJobs]);
+    renderAll();
+  }
+
   if (failed > 0) {
     Formatters.toast(`⚠️ บันทึก ${added} งาน, ล้มเหลว ${failed} งาน`, 'warn');
   } else {
