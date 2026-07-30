@@ -4,3 +4,5 @@ dist/
 .vite/
 *.log
 .DS_Store
+parser_tests/__pycache__/
+parser_tests/report*.json
