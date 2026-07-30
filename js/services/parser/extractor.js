@@ -214,10 +214,12 @@ export function extract(block) {
       // [FIX 2026-07-26] Strip wheel size patterns, then find first standalone number ≠ price
       // "18/1วง 1 800" → strip "18/1วง" → " 1 800" → qty=1 (first num ≠ price=800)
       // "17/1ชุด+18/1ชุด 2 ราคา6000" → strip both → " 2 ราคา6000" → qty=2 (≠ 6000)
-      const qtyClean = block.replace(
-        /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\s*\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
-        ' '
-      );
+      const qtyClean = block
+        .replace(/\d{2,3}\/\d{2,3}\s*R\s*\d{2,3}/g, ' ')  // [FIX 2026-07-30] Strip standard tyre (185/65 R15)
+        .replace(
+          /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\s*\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
+          ' '
+        );
       const allNums = qtyClean.match(/(?<!\d)\d{1,3}(?:\s|$)/g);
       if (allNums) {
         const p = job.price || 0;
@@ -249,9 +251,29 @@ export function extract(block) {
       return sum + parseInt(m[1].replace(/,/g, ''), 10);
     }, 0);
   } else {
-    // fallback: number near "บาท"/"บ."
-    m = block.match(/([\d,]+)\s*(?:บาท|บ\.?|฿)/i);
-    if (m) job.price = parseInt(m[1].replace(/,/g, ''), 10);
+    // Pre-check: extract "รวมเป็นเงิน" total FIRST to avoid double-count
+    const totalRegex = /รวม(?:เป็น)?เงิน\s*([\d,]+)\s*(?:บาท|บ\.?|฿)?/i;
+    const totalM = totalRegex.exec(block);
+    let totalForFallback = totalM ? parseInt(totalM[1].replace(/,/g, ''), 10) : 0;
+
+    // [FIX 2026-07-30] fallback: exclude the total line from search space
+    // (prevents "รวมเป็นเงิน4,800บาท" being counted as an extra 4800)
+    let fallbackBlock = block;
+    if (totalM) {
+      const beforeTotal = block.slice(0, totalM.index);
+      const afterTotal = block.slice(totalM.index + totalM[0].length);
+      fallbackBlock = beforeTotal + afterTotal;
+    }
+    const priceFallback = [...fallbackBlock.matchAll(/([\d,]+)\s*(?:บาท|บ\.?|฿)/gi)];
+    if (priceFallback.length > 0) {
+      job.price = priceFallback.reduce((sum, m) => {
+        return sum + parseInt(m[1].replace(/,/g, ''), 10);
+      }, 0);
+    }
+    // If "รวมเป็นเงิน" total > individual sum, use total
+    if (totalForFallback > (job.price || 0)) {
+      job.price = totalForFallback;
+    }
   }
   // [FIX 2026-07-26] fallback: standalone 3-5 digit number at end of block
   // (e.g. "15/2วง 2 800" — 800 at end, no "ราคา" prefix)
@@ -276,8 +298,20 @@ export function extract(block) {
   }
   // [FIX 2026-07-26] fallback: first standalone number ≠ price (when no wheel sizes)
   // e.g. "ตาหนู่ย" → "5 ราคา2500" → qty=5 (≠ price=2500, ≤ 99)
+  // [FIX 2026-07-30] strip location & address patterns to prevent "7" from "7-11", "2" from "วรินทร 2"
   if (!job.quantity) {
-    const fallbackNums = block.match(/(?<!\d)\d{1,3}(?!\s*\d)/g);
+    let qtyBlock = block;
+    // Remove location section (พิกัด: ...)
+    const qtyLocMatch = block.match(/พิกัด\s*[:：]?\s*(.+?)(?=\s*โทร|\s*เบอร์|\s*ล้อ|\s*ชื่อเฟส|\s*หมายเหตุ|\s*$)/is);
+    if (qtyLocMatch) {
+      qtyBlock = block.replace(qtyLocMatch[0], '');
+    }
+    // Remove address number patterns
+    qtyBlock = qtyBlock.replace(/\d{1,2}\s*[-–—/]\s*\d{1,3}/g, ' ');  // "7-11", "49/1"
+    qtyBlock = qtyBlock.replace(/(?:ซอย|หมู่|บ้าน|เลขที่|ถนน|ตำบล|อำเภอ|แขวง|เขต)\s*\d+[-–—/]?\d*/gi, ' ');
+    // Remove price-like sequences ("8,100" → 8 would become qty)
+    qtyBlock = qtyBlock.replace(/[\d,]{3,}(?:\s*บาท|บ\.?|฿)?/g, ' ');
+    const fallbackNums = qtyBlock.match(/(?<!\d)\d{1,3}(?!\s*\d)/g);
     if (fallbackNums) {
       const p = job.price || 0;
       for (const n of fallbackNums) {
