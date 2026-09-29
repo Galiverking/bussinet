@@ -43,7 +43,15 @@ export async function signInAnonymously() {
 }
 
 export function loadJobs() {
-  if (!supabase) return;
+  // BUGFIX 2026-09-29 — this guard returned silently, so the sync badge never
+  // received a single update and stayed on the raw HTML default (the word
+  // OFFLINE with dot #475569). fetchJobs() already had the matching guard; this
+  // one was missed, and loadJobs() is the function initApp() actually calls.
+  if (!supabase) {
+    updateSyncStatus('error');
+    Logger.warn('Supabase', 'loadJobs called before client init');
+    return;
+  }
 
   const jobChannel = supabase
     .channel('jobs-realtime')
