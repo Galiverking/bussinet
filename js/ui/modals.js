@@ -307,7 +307,18 @@ export function saveJob() {
     // [FIX 2026-07-19] Optimistic insert ทันที (id ชั่วคราว รอ realtime แทนที่)
     const tmpId = 'tmp_' + Date.now();
     const jobs = Store.get('jobs') || [];
-    jobs.unshift({ ...data, id: tmpId, status: 'pending', postponed: false });
+    // BUGFIX 2026-09-29 — the optimistic row omitted created_at, so
+    // renderer.js's `new Date(j.created_at).toLocaleDateString('th-TH')` rendered
+    // "Invalid Date" in the job card until realtime sync replaced the row. Verified
+    // against production: the text stayed "Invalid Date" for the full 12s poll window.
+    // created_at is set server-side by insertJob, so it must also be set here.
+    jobs.unshift({
+      ...data,
+      id: tmpId,
+      status: 'pending',
+      postponed: false,
+      created_at: new Date().toISOString(),
+    });
     Store.set('jobs', jobs);
     renderAll();
     Supabase.insertJob(data)

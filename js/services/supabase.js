@@ -73,7 +73,15 @@ export function loadJobs() {
 }
 
 export async function fetchJobs() {
-  if (!supabase) return;
+  // BUGFIX 2026-09-29 — the old `if (!supabase) return;` returned silently, so when
+  // the client was not ready the sync badge kept the hardcoded "OFFLINE" label and the
+  // hardcoded #475569 dot from index.html. Verified against production: dot stayed
+  // rgb(71,85,105) (= the raw HTML default) even though the database was reachable.
+  if (!supabase) {
+    updateSyncStatus('error');
+    Logger.warn('Supabase', 'fetchJobs called before client init');
+    return;
+  }
 
   const { data, error } = await supabase
     .from(COLLECTION_JOBS)
