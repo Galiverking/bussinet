@@ -40,11 +40,12 @@ export function extract(block) {
   }
 
   // ---- CUSTOMER NAME ----
-  // Accept patterns: ชื่อเฟส/ลูกค้า/คุณ/ชื่อ/เฟส + name
+  // Accept patterns: ชื่อเฟส/ชื่อไลน์/ลูกค้า/คุณ/ชื่อ/เฟส + name
   // (TEMP) handles "ชื่อเฟสมานี" (no space) and "ชื่อเฟส มานี".
   // \p{M} included for Thai combining vowels (ี ู ์ etc.)
+  // [FIX 2026-09-29] เพิ่ม ชื่อไลน์ และกัน "ชื่อไลน์" ตกไปเป็นชื่อตัวเอง
   m = block.match(
-    /(?:ชื่อเฟส|ลูกค้า|คุณ|ชื่อ|เฟส)\s*[:：]?\s*([\p{L}\p{M}\d .'-]{1,30}?)\s*(?=\d{9,10}|พิกัด|ที่อยู่|โทร|เบอร์|$)/mu
+    /(?:ชื่อเฟส|ชื่อไลน์|ลูกค้า|คุณ|ชื่อ|เฟส)\s*[:：]?\s*([\p{L}\p{M}\d .'-]{1,30}?)\s*(?=\d{9,10}|พิกัด|ที่อยู่|โทร|เบอร์|$)/mu
   );
   if (!m) {
     m = block.match(/^([\p{L}\p{M}\d .'-]{2,30})$/mu);
@@ -57,7 +58,7 @@ export function extract(block) {
     // แก้บัค: ตัดเบอร์โทรออกก่อนเช็คชื่อ (รองรับ "ร้านวรรณา 0822223333 ...")
     const cleaned = block.replace(/0\d{8,9}/g, ' ').split('\n').map((l) => l.trim()).filter(Boolean);
     for (const line of cleaned) {
-      if (/^(?:เบอร์|โทร|พิกัด|ที่อยู่|ราคา|ล้อ|ชื่อเฟส|เวลา|นัด)/i.test(line)) continue;
+      if (/^(?:เบอร์|โทร|พิกัด|ที่อยู่|ราคา|ล้อ|ชื่อเฟส|ชื่อไลน์|เวลา|นัด)/i.test(line)) continue;
       const nm = line.match(/^[\p{L}\p{M}][\p{L}\p{M}\d .'-]{1,30}/u);
       if (nm && nm[0].trim().length >= 2) {
         // [FIX 2026-07-30] Trim at boundary keywords to prevent "สมชาย โทร"
@@ -211,33 +212,15 @@ export function extract(block) {
         .join(', ');
       // Attempt to determine quantity: "4 เส้น", "2 ชุด", "6 ล้อ", "2 วง"
       // [FIX 2026-07-19] ใช้ (?<!\d) กันจับท้ายเบอร์โทร (เช่น ...456 วง)
-      // [FIX 2026-07-26] Strip wheel size patterns, then find first standalone number ≠ price
-      // "18/1วง 1 800" → strip "18/1วง" → " 1 800" → qty=1 (first num ≠ price=800)
-      // "17/1ชุด+18/1ชุด 2 ราคา6000" → strip both → " 2 ราคา6000" → qty=2 (≠ 6000)
-      const qtyClean = block
-        .replace(/\d{2,3}\/\d{2,3}\s*R\s*\d{2,3}/g, ' ')  // [FIX 2026-07-30] Strip standard tyre (185/65 R15)
-        .replace(
-          /(?<!\d)\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)(?:\s*\+\s*(?:\s*\d{1,2}\/\d{1,2}\s*(?:วง|ชุด|ล้อ|พร้อมยาง)))*/g,
-          ' '
-        );
-      const allNums = qtyClean.match(/(?<!\d)\d{1,3}(?:\s|$)/g);
-      if (allNums) {
-        const p = job.price || 0;
-        for (const n of allNums) {
-          const parsed = parseInt(n, 10);
-          if (parsed !== p && parsed <= 99) {
-            job.quantity = parsed;
-            break;
-          }
-        }
-      }
-      // [FIX 2026-07-30] When wheelSizes have unit info, calculate quantity from profile
-      // (รองรับ order 7: 15/4วง(4)+17/4วง(4)+18/12วง(12) = 20)
-      // ทำหลังจาก regex fallback เพื่อ override ค่าที่ผิด
-      if (!job.quantity && sizes[0].unit) {
-        job.quantity = sizes.reduce((sum, s) => {
-          const count = s.profile || 1;
-          return sum + (s.unit === 'ชุด' ? count * 4 : count);
+      // [FIX 2026-09-29] จำนวนวงต้องมาจากคำวง/ชุด/ล้อ เท่านั้น
+      // เดิมใช้ fallback "เลขตัวแรกที่เหลือหลังตัดขนาดล้อ" ซึ่งจับเลขในพิกัดและ
+      // เบอร์โทร เช่น "คลองสอง27" → 27 วง, "63/60 หมู่ 10" → 12 วง
+      // ตอนนี้: ถ้าข้อความระบุ "N วง/ชุด/ล้อ" ให้เชื่อ N เสมอ
+      const qtyWords = [...block.matchAll(/(?<!\d)(\d{1,3})\s*(วง|ชุด|ล้อ|เส้น)/g)];
+      if (qtyWords.length) {
+        job.quantity = qtyWords.reduce((sum, m) => {
+          const n = parseInt(m[1], 10);
+          return sum + (m[2] === 'ชุด' ? n * 4 : n);
         }, 0);
       }
     }
