@@ -51,13 +51,23 @@ describe('chat location detection', () => {
     expect(j.price).toBe(1400);
   });
 
-  it('buildMapsUrl returns null for placeholder without override', () => {
-    const j = { locationType: 'placeholder', location_raw: 'x (โลเคชั่นทางแชท)', loc_override: null };
+  // The old test asserted buildMapsUrl() read job.loc_override, but that column
+  // was never in the schema. Commit bcbf9ef replaced it deliberately: a
+  // resolved chat location is stored as location_raw = the https URL together
+  // with location_type = 'url' (see modals.js:560, saveMapsLink). These two
+  // cases cover the design that actually shipped.
+  it('buildMapsUrl returns null for placeholder', () => {
+    const j = { locationType: 'placeholder', location_raw: 'x (โลเคชั่นทางแชท)' };
     expect(buildMapsUrl(j)).toBeNull();
   });
 
-  it('buildMapsUrl uses loc_override when present', () => {
-    const j = { locationType: 'placeholder', location_raw: 'x (โลเคชั่นทางแชท)', loc_override: 'https://maps.google.com/?q=1,2' };
+  it('buildMapsUrl returns the stored URL when locationType is url', () => {
+    const j = { locationType: 'url', location_raw: 'https://maps.google.com/?q=1,2' };
     expect(buildMapsUrl(j)).toBe('https://maps.google.com/?q=1,2');
+  });
+
+  it('buildMapsUrl rejects a non-https URL even when locationType is url', () => {
+    const j = { locationType: 'url', location_raw: 'javascript:alert(1)' };
+    expect(buildMapsUrl(j)).toBeNull();
   });
 });
