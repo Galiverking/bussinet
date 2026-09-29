@@ -14,8 +14,12 @@ import * as Formatters from '../utils/formatters.js';
 // ==================== EVENT BINDINGS ====================
 function initEventBindings() {
   // Theme toggle
-  const themeBtn = document.getElementById('themeBtn');
-  if (themeBtn) themeBtn.addEventListener('click', Theme.toggleTheme);
+  // BUGFIX 2026-09-29 — themeBtn was wired TWICE: index.html:84 has onclick="toggleTheme()"
+  // AND an addEventListener here. One click ran toggleTheme() twice, so the toggle cancelled
+  // itself out and the button appeared dead. CDP-verified against production: calling
+  // toggleTheme() directly worked, but b.click() changed nothing.
+  // The duplicate addEventListener is removed — keep only the inline onclick, which is the
+  // pattern every other button in index.html uses.
 
   // Add job button
   const btnAddJob = document.getElementById('btnAddJob');
@@ -193,6 +197,10 @@ export function exposeToWindow() {
   window.updateLocTypeHint = Modals.updateLocTypeHint;
   window.closeAll = Modals.closeAll;
 
+  // Location (BUGFIX 2026-09-29) — gpsBtn uses inline onclick="requestLocation()"
+  // but it was never bound here → ReferenceError on click.
+  window.requestLocation = Location.requestLocation;
+
   // Theme
   window.toggleTheme = Theme.toggleTheme;
 
@@ -242,15 +250,28 @@ Store.subscribe((key, value) => {
   }
 });
 
-// ==================== MAIN BOOT ===================
+// ==================== MAIN BOOT ====================
+// BUGFIX 2026-09-29 — boot order hardened.
+// Previously: exposeToWindow() ran LAST, after initApp(). Any throw inside initApp()
+// silently killed all 26 inline onclick="fn()" handlers in index.html (theme toggle
+// included) because window.* bindings never got created → ReferenceError on every click.
+// Now window bindings are established immediately after the listener bindings, and
+// initApp() failures are contained so the app still boots into a usable state.
 export async function boot() {
   Logger.info('app', 'Booting Logis Master...');
   Theme.initTheme();
   initEventBindings();
+  exposeToWindow();          // bind inline handlers BEFORE anything that can throw
   Supabase.initSupabaseService();
   await Supabase.signInAnonymously();
-  initApp();
-  exposeToWindow();
+
+  try {
+    initApp();
+  } catch (err) {
+    Logger.error('app', 'initApp() failed:', err && err.message);
+    Formatters.toast('⚠️ เริ่มระบบไม่สมบูรณ์ — บางส่วนอาจใช้งานไม่ได้', 'err');
+  }
+
   Logger.info('app', 'Boot complete');
 }
 

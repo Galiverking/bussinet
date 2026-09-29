@@ -55,8 +55,10 @@ export const TOAST_TYPES = {
 export const SYNC_STATUS = {
   synced: { bg: '#22c55e', label: 'SYNCED', color: '#22c55e' },
   pending: { bg: '#f97316', label: 'SYNCING…', color: '#f97316' },
+  // BUGFIX 2026-09-29 — 'error' and 'offline' were both #ef4444, so a real backend
+  // failure was visually identical to "no connection". Amber distinguishes them.
   offline: { bg: '#ef4444', label: 'OFFLINE', color: '#ef4444' },
-  error: { bg: '#ef4444', label: 'ERROR', color: '#ef4444' },
+  error: { bg: '#f59e0b', label: 'ERROR', color: '#f59e0b' },
 };
 
 export const THAI_NUMBERS = {
