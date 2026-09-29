@@ -31,7 +31,16 @@ export function getSupabase() {
 export async function signInAnonymously() {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.auth.signInAnonymously();
+    // BUGFIX 2026-09-29 — this is the first await in boot(). It had no timeout,
+    // so a request that never settled (weak signal, captive portal, half-open
+    // connection) meant initApp() and therefore loadJobs() never ran at all: the
+    // badge kept the raw HTML default (the word SYNCING… with dot #475569) with
+    // no error anywhere. CDP evidence: with supabase.co held open, the dot stayed
+    // rgb(71,85,105) — the literal inline style — for the full 20s window.
+    const { data, error } = await withSyncTimeout(
+      supabase.auth.signInAnonymously(),
+      8000
+    );
     if (error) throw error;
     Logger.info('Auth', 'Anonymous session:', data?.session?.expires_at);
     return data;
@@ -40,6 +49,32 @@ export async function signInAnonymously() {
     toast('⚠️ Auth failed, some features may not work', 'warn');
     return null;
   }
+}
+
+/**
+ * Race a Supabase request against a timeout so the sync badge can never sit on
+ * "SYNCING…" forever.
+ *
+ * BUGFIX 2026-09-29 — the badge has no natural upper bound: fetchJobs() awaited
+ * the client with no timeout, so a request that never settled (weak mobile
+ * signal, captive portal, half-open connection) left the header showing
+ * "SYNCING…" indefinitely with no way for the user to tell sync had died.
+ *
+ * The underlying request is deliberately NOT cancelled. When it does eventually
+ * settle, fetchJobs() continues normally and the badge flips to SYNCED, so this
+ * is fail-open: local data stays usable and a late success is still honoured.
+ */
+const SYNC_TIMEOUT_MS = 8000;
+
+function withSyncTimeout(promise, ms = SYNC_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`sync timed out after ${ms}ms`)),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 export function loadJobs() {
@@ -91,10 +126,22 @@ export async function fetchJobs() {
     return;
   }
 
-  const { data, error } = await supabase
-    .from(COLLECTION_JOBS)
-    .select('*')
-    .order('created_at', { ascending: true });
+  let data, error;
+  try {
+    ({ data, error } = await withSyncTimeout(
+      supabase
+        .from(COLLECTION_JOBS)
+        .select('*')
+        .order('created_at', { ascending: true })
+    ));
+  } catch (err) {
+    // The request is not cancelled — only our wait for it is bounded. If it
+    // resolves later, this call's caller is unaffected and the next successful
+    // fetch will set the badge to SYNCED.
+    Logger.error('Supabase', 'fetchJobs timed out:', err.message);
+    updateSyncStatus('offline');
+    return;
+  }
 
   if (error) {
     Logger.error(
